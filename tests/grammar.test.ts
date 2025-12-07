@@ -30,6 +30,15 @@ import type {
   ProductionRule,
   Grammar,
 } from "../src/grammar";
+import {
+  PluginRegistry,
+  defaultRegistry,
+} from "../src/plugins/registry";
+import {
+  graphqlSDLParser,
+  type GraphQLSDLParserOptions,
+} from "../src/plugins/parsers/graphql-sdl";
+import { PluginError } from "../src/plugins/types";
 
 describe("Zod Schema Validation for GraphQL Grammar", () => {
   describe("Terminal Schema", () => {
@@ -467,6 +476,247 @@ describe("Zod Schema Validation for GraphQL Grammar", () => {
       };
 
       expect(GrammarSchema.safeParse(invalidGrammar).success).toBe(false);
+    });
+  });
+
+  describe("Parser Plugin Integration", () => {
+    let registry: PluginRegistry;
+
+    beforeEach(() => {
+      registry = new PluginRegistry();
+      registry.registerParser("graphql-sdl", graphqlSDLParser);
+    });
+
+    describe("GraphQL SDL Parser", () => {
+      it("should parse GraphQL SDL into grammar structure", () => {
+        const sdl = `
+          type User {
+            id: ID!
+            name: String!
+          }
+        `;
+
+        const result = graphqlSDLParser.parse(sdl);
+        expect(result).toBeDefined();
+        expect(result.root).toBe("Document");
+        expect(result.rules).toBeDefined();
+      });
+
+      it("should validate parsed grammar structure", () => {
+        const sdl = "type User { id: ID! }";
+        const parsedGrammar = graphqlSDLParser.parse(sdl);
+        
+        // Validate the parsed grammar conforms to Grammar schema
+        expect(validateGrammar(parsedGrammar)).toBe(true);
+      });
+
+      it("should accept parser options", () => {
+        const sdl = "type User { id: ID! }";
+        const options: GraphQLSDLParserOptions = {
+          strict: false,
+          preserveComments: true,
+          validate: true,
+        };
+
+        const result = graphqlSDLParser.parse(sdl, options);
+        expect(result).toBeDefined();
+      });
+
+      it("should validate parser options", () => {
+        const validOptions: GraphQLSDLParserOptions = {
+          strict: true,
+          preserveComments: false,
+          validate: true,
+        };
+        expect(graphqlSDLParser.validateOptions?.(validOptions)).toBe(true);
+
+        const invalidOptions = { strict: "invalid" };
+        expect(graphqlSDLParser.validateOptions?.(invalidOptions)).toBe(false);
+      });
+
+      it("should return input format", () => {
+        expect(graphqlSDLParser.getInputFormat?.()).toBe("graphql");
+      });
+
+      it("should throw error in strict mode with empty input", () => {
+        const options: GraphQLSDLParserOptions = {
+          strict: true,
+        };
+
+        expect(() => {
+          graphqlSDLParser.parse("", options);
+        }).toThrow();
+      });
+
+      it("should not throw error in non-strict mode with empty input", () => {
+        const options: GraphQLSDLParserOptions = {
+          strict: false,
+        };
+
+        expect(() => {
+          graphqlSDLParser.parse("", options);
+        }).not.toThrow();
+      });
+    });
+
+    describe("Parser Registry Integration", () => {
+      it("should parse GraphQL SDL through registry", () => {
+        const sdl = `
+          type Query {
+            user(id: ID!): User
+          }
+        `;
+
+        const result = registry.parse(sdl, "graphql-sdl");
+        expect(result.grammar).toBeDefined();
+        expect(result.parser).toBe("graphql-sdl");
+        expect(result.format).toBe("graphql");
+        expect(result.timestamp).toBeInstanceOf(Date);
+      });
+
+      it("should pass options through registry", () => {
+        const sdl = "type User { id: ID! }";
+        const options: GraphQLSDLParserOptions = {
+          strict: false,
+          preserveComments: true,
+        };
+
+        const result = registry.parse(sdl, "graphql-sdl", options);
+        expect(result.options).toBe(options);
+      });
+
+      it("should throw PluginError when parser not found", () => {
+        expect(() => {
+          registry.parse("type User { id: ID! }", "nonexistent");
+        }).toThrow(PluginError);
+      });
+
+      it("should throw PluginError when parser is disabled", () => {
+        registry.setPluginEnabled("graphql-sdl", "parser", false);
+        
+        expect(() => {
+          registry.parse("type User { id: ID! }", "graphql-sdl");
+        }).toThrow(PluginError);
+      });
+
+      it("should validate options through registry", () => {
+        const sdl = "type User { id: ID! }";
+        const invalidOptions = { strict: "invalid" };
+
+        expect(() => {
+          registry.parse(sdl, "graphql-sdl", invalidOptions);
+        }).toThrow(PluginError);
+      });
+    });
+
+    describe("Parser → Transformer → Generator Workflow", () => {
+      // Parser is already registered in outer beforeEach
+      // Note: Transformers and generators would be registered here
+      // but we're focusing on parser integration with grammar validation
+
+      it("should parse and validate grammar in workflow", () => {
+        const sdl = `
+          type User {
+            id: ID!
+            name: String!
+            email: String
+          }
+        `;
+
+        // Parse GraphQL SDL
+        const parseResult = registry.parse(sdl, "graphql-sdl");
+        const grammar = parseResult.grammar;
+
+        // Validate parsed grammar structure
+        expect(validateGrammar(grammar)).toBe(true);
+        expect(grammar.root).toBe("Document");
+        expect(grammar.rules).toBeDefined();
+      });
+
+      it("should parse complex GraphQL SDL", () => {
+        const sdl = `
+          type Query {
+            users(limit: Int = 10): [User!]!
+            user(id: ID!): User
+          }
+
+          type User {
+            id: ID!
+            name: String!
+            posts: [Post!]!
+          }
+
+          type Post {
+            id: ID!
+            title: String!
+            content: String
+          }
+        `;
+
+        const result = registry.parse(sdl, "graphql-sdl");
+        expect(validateGrammar(result.grammar)).toBe(true);
+      });
+
+      it("should handle parser errors gracefully", () => {
+        const invalidSDL = "invalid graphql syntax {";
+
+        // The parser should handle errors appropriately
+        // (current implementation may throw, which is expected)
+        expect(() => {
+          registry.parse(invalidSDL, "graphql-sdl", { strict: true });
+        }).not.toThrow(PluginError); // May throw parsing errors, but not PluginError
+      });
+    });
+
+    describe("Parser with Grammar Validation", () => {
+      it("should produce valid grammar from parsed SDL", () => {
+        const sdl = `
+          scalar DateTime
+
+          type User {
+            id: ID!
+            createdAt: DateTime!
+          }
+        `;
+
+        const parsedGrammar = graphqlSDLParser.parse(sdl, {
+          validate: true,
+        });
+
+        // Validate grammar structure
+        expect(validateGrammar(parsedGrammar)).toBe(true);
+        
+        // Validate all rules in parsed grammar
+        Object.values(parsedGrammar.rules).forEach((rule) => {
+          expect(validateProductionRule(rule)).toBe(true);
+        });
+      });
+
+      it("should preserve grammar structure after parsing", () => {
+        const sdl = "type User { id: ID! }";
+        const parsedGrammar = graphqlSDLParser.parse(sdl);
+
+        // Verify grammar structure is maintained
+        expect(parsedGrammar).toHaveProperty("root");
+        expect(parsedGrammar).toHaveProperty("rules");
+        expect(typeof parsedGrammar.root).toBe("string");
+        expect(typeof parsedGrammar.rules).toBe("object");
+      });
+    });
+
+    describe("Parser Metadata", () => {
+      it("should have correct parser metadata", () => {
+        expect(graphqlSDLParser.metadata.name).toBe("graphql-sdl");
+        expect(graphqlSDLParser.metadata.version).toBe("1.0.0");
+        expect(graphqlSDLParser.metadata.description).toBeDefined();
+      });
+
+      it("should list registered parsers", () => {
+        const parsers = registry.listParsers();
+        expect(parsers).toHaveLength(1);
+        expect(parsers[0].id).toBe("graphql-sdl");
+        expect(parsers[0].metadata.name).toBe("graphql-sdl");
+      });
     });
   });
 });
