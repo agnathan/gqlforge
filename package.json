@@ -21,8 +21,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
+    "test:json": "vitest run --reporter=json --outputFile=test-results.json",
     "typecheck": "tsc --noEmit",
-    "clean": "rimraf dist",
+    "clean": "rimraf dist test-results.json",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "keywords": [],
