@@ -439,7 +439,7 @@ describe("graphql-sdl generator", () => {
 
   describe("C.1-C.3 Lexical Tokens - Name Token", () => {
     describe("Generator Tests", () => {
-      const TEST_ID_001 = createTestID("GEN", "NAME", 1);
+      const TEST_ID_001 = createTestID("GEN", "graphql-sdl", 7);
       registerTestID(TEST_ID_001, "tests/generators/graphql-sdl.test.ts", "Generate Name terminal with valid identifier pattern");
 
       it(`[${TEST_ID_001}] Generate Name terminal with valid identifier pattern`, async () => {
@@ -500,7 +500,7 @@ describe("graphql-sdl generator", () => {
         }
       });
 
-      const TEST_ID_002 = createTestID("GEN", "NAME", 2);
+      const TEST_ID_002 = createTestID("GEN", "graphql-sdl", 8);
       registerTestID(TEST_ID_002, "tests/generators/graphql-sdl.test.ts", "Generate Name in type definition context");
 
       it(`[${TEST_ID_002}] Generate Name in type definition context`, async () => {
@@ -561,7 +561,7 @@ describe("graphql-sdl generator", () => {
         }
       });
 
-      const TEST_ID_003 = createTestID("GEN", "NAME", 3);
+      const TEST_ID_003 = createTestID("GEN", "graphql-sdl", 9);
       registerTestID(TEST_ID_003, "tests/generators/graphql-sdl.test.ts", "Generate Name in field definition context");
 
       it(`[${TEST_ID_003}] Generate Name in field definition context`, async () => {
@@ -622,7 +622,7 @@ describe("graphql-sdl generator", () => {
         }
       });
 
-      const TEST_ID_004 = createTestID("GEN", "NAME", 4);
+      const TEST_ID_004 = createTestID("GEN", "graphql-sdl", 10);
       registerTestID(TEST_ID_004, "tests/generators/graphql-sdl.test.ts", "Generate Name in argument definition context");
 
       it(`[${TEST_ID_004}] Generate Name in argument definition context`, async () => {
@@ -683,7 +683,7 @@ describe("graphql-sdl generator", () => {
         }
       });
 
-      const TEST_ID_005 = createTestID("GEN", "NAME", 5);
+      const TEST_ID_005 = createTestID("GEN", "graphql-sdl", 11);
       registerTestID(TEST_ID_005, "tests/generators/graphql-sdl.test.ts", "Generate Name in directive context");
 
       it(`[${TEST_ID_005}] Generate Name in directive context`, async () => {
@@ -744,7 +744,7 @@ describe("graphql-sdl generator", () => {
         }
       });
 
-      const TEST_ID_006 = createTestID("GEN", "NAME", 6);
+      const TEST_ID_006 = createTestID("GEN", "graphql-sdl", 12);
       registerTestID(TEST_ID_006, "tests/generators/graphql-sdl.test.ts", "Generate Name in enum value context");
 
       it(`[${TEST_ID_006}] Generate Name in enum value context`, async () => {
