@@ -6,3 +6,6 @@
 export * from "./grammar";
 export * from "./grammar-zod";
 
+// Export plugin architecture
+export * from "./plugins";
+
