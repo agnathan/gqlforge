@@ -117,3 +117,28 @@ export function getFixturePath(relativePath: string): string {
   return join(FIXTURES_ROOT, relativePath);
 }
 
+/**
+ * Save generated output for review
+ * Saves to a 'generated/' directory next to 'expected/' for easy comparison
+ */
+export function saveGeneratedOutput(
+  pluginType: "parsers" | "transformers" | "generators",
+  pluginName: string,
+  outputName: string,
+  content: string
+): void {
+  const relativePath = `${pluginType}/${pluginName}/generated/${outputName}`;
+  saveFixture(relativePath, content);
+}
+
+/**
+ * Get path to generated output file
+ */
+export function getGeneratedOutputPath(
+  pluginType: "parsers" | "transformers" | "generators",
+  pluginName: string,
+  outputName: string
+): string {
+  return join(FIXTURES_ROOT, pluginType, pluginName, "generated", outputName);
+}
+

@@ -4,19 +4,27 @@
  */
 
 import type { Generator, PluginOptions } from "../types";
-import type { Grammar, GrammarElement } from "../../grammar";
+import type {
+  Grammar,
+  GrammarElement,
+  ProductionRule,
+  Terminal,
+  Sequence,
+  OneOf,
+  List,
+} from "../../grammar";
 
 export interface GraphQLSDLOptions extends PluginOptions {
   /**
    * Include comments/descriptions
    */
   includeDescriptions?: boolean;
-  
+
   /**
    * Format output with indentation
    */
   format?: boolean;
-  
+
   /**
    * Indentation size
    */
@@ -70,20 +78,49 @@ export const graphqlSDLGenerator: Generator<string> = {
 
     const indent = opts.format ? " ".repeat(opts.indentSize ?? 2) : "";
     const lines: string[] = [];
+    const referencedTypes = new Set<string>();
 
-    // Generate schema definition if present
+    // Special handling for SchemaDefinition - parse it specifically
     if (grammar.rules.SchemaDefinition) {
-      lines.push("schema {");
-      if (opts.format) {
-        lines.push(`${indent}query: Query`);
-        lines.push(`${indent}mutation: Mutation`);
-        lines.push(`${indent}subscription: Subscription`);
+      const schemaDef = generateSchemaDefinition(
+        grammar,
+        grammar.rules.SchemaDefinition,
+        indent,
+        opts,
+        referencedTypes
+      );
+      if (schemaDef) {
+        lines.push(schemaDef);
+        if (opts.format) {
+          lines.push("");
+        }
       }
-      lines.push("}");
-      lines.push("");
+    } else {
+      // Start from root rule and generate recursively
+      const rootRule = grammar.rules[grammar.root];
+      if (rootRule) {
+        const generated = generateFromRule(grammar, rootRule, indent, opts, 0);
+        if (generated) {
+          lines.push(generated);
+        }
+      }
     }
 
-    // Generate type definitions
+    // Generate type definitions for referenced types that don't exist
+    for (const typeName of referencedTypes) {
+      if (!grammar.rules[`${typeName}TypeDefinition`] && !grammar.rules[typeName]) {
+        // Generate a minimal type definition
+        const typeDef = opts.format
+          ? `type ${typeName} {\n${indent}_: Boolean\n}`
+          : `type ${typeName} { _: Boolean }`;
+        lines.push(typeDef);
+        if (opts.format) {
+          lines.push("");
+        }
+      }
+    }
+
+    // Generate type definitions from grammar
     const typeDefinitions = [
       "ScalarTypeDefinition",
       "ObjectTypeDefinition",
@@ -96,10 +133,12 @@ export const graphqlSDLGenerator: Generator<string> = {
     for (const typeDef of typeDefinitions) {
       const rule = grammar.rules[typeDef];
       if (rule) {
-        const sdl = generateTypeDefinition(rule, indent, opts);
+        const sdl = generateFromRule(grammar, rule, indent, opts, 0);
         if (sdl) {
           lines.push(sdl);
-          lines.push("");
+          if (opts.format) {
+            lines.push("");
+          }
         }
       }
     }
@@ -108,13 +147,344 @@ export const graphqlSDLGenerator: Generator<string> = {
   },
 };
 
-function generateTypeDefinition(
-  rule: { name: string; definition: GrammarElement },
-  _indent: string,
-  _options: GraphQLSDLOptions
+/**
+ * Generate SDL from a production rule
+ */
+function generateFromRule(
+  grammar: Grammar,
+  rule: ProductionRule,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
 ): string {
-  // Simplified SDL generation - in a real implementation,
-  // this would parse the grammar structure more deeply
-  return `# ${rule.name} type definition\n# Generated from grammar rule`;
+  return generateFromElement(grammar, rule.definition, indent, options, depth);
 }
 
+/**
+ * Generate SDL from a grammar element
+ */
+function generateFromElement(
+  grammar: Grammar,
+  element: GrammarElement,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
+): string {
+  switch (element.kind) {
+    case "Terminal":
+      return generateTerminal(element, grammar);
+
+    case "NonTerminal":
+      return generateNonTerminal(grammar, element.name, indent, options, depth);
+
+    case "Sequence":
+      return generateSequence(
+        grammar,
+        element,
+        indent,
+        options,
+        depth
+      );
+
+    case "OneOf":
+      return generateOneOf(grammar, element, indent, options, depth);
+
+    case "Optional":
+      // For Optional, we generate it if it's commonly present
+      // In practice, we'll generate it for now (can be made configurable)
+      return generateFromElement(
+        grammar,
+        element.element,
+        indent,
+        options,
+        depth
+      );
+
+    case "List":
+      return generateList(grammar, element, indent, options, depth);
+
+    default:
+      return "";
+  }
+}
+
+/**
+ * Generate from a Terminal
+ */
+function generateTerminal(terminal: Terminal, _grammar: Grammar): string {
+  // If terminal has a name that's a keyword, use it directly
+  // Check if it's a known GraphQL keyword
+  const keyword = terminal.name.toLowerCase();
+  const graphQLKeywords = [
+    "schema",
+    "type",
+    "interface",
+    "union",
+    "enum",
+    "input",
+    "scalar",
+    "query",
+    "mutation",
+    "subscription",
+    "implements",
+    "extend",
+    "directive",
+    "on",
+    "repeatable",
+  ];
+
+  if (graphQLKeywords.includes(keyword)) {
+    return keyword;
+  }
+
+  // If it's a punctuator, return the name directly (e.g., "{", "}", ":", etc.)
+  if (terminal.name.length === 1 || terminal.name === "..." || terminal.name === "@") {
+    return terminal.name;
+  }
+
+  // For other terminals, try to extract from pattern or use name
+  // This is a placeholder - in a full implementation, we'd need to handle
+  // actual token values from parsing
+  return terminal.name;
+}
+
+/**
+ * Generate from a NonTerminal by resolving the rule
+ */
+function generateNonTerminal(
+  grammar: Grammar,
+  ruleName: string,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
+): string {
+  const rule = grammar.rules[ruleName];
+  if (!rule) {
+    // If rule doesn't exist, return empty or placeholder
+    return "";
+  }
+
+  return generateFromRule(grammar, rule, indent, options, depth);
+}
+
+/**
+ * Generate from a Sequence
+ */
+function generateSequence(
+  grammar: Grammar,
+  sequence: Sequence,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
+): string {
+  const parts: string[] = [];
+
+  for (const element of sequence.elements) {
+    const generated = generateFromElement(
+      grammar,
+      element,
+      indent,
+      options,
+      depth
+    );
+
+    if (generated) {
+      // Skip empty strings
+      if (generated.trim()) {
+        parts.push(generated);
+      }
+    }
+  }
+
+  return parts.join(options.format ? " " : "");
+}
+
+/**
+ * Generate from a OneOf (select first option for now)
+ * In a full implementation, this would need context to choose the right option
+ */
+function generateOneOf(
+  grammar: Grammar,
+  oneOf: OneOf,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
+): string {
+  // For OneOf, we need to select one option
+  // For OperationType specifically, we might want to generate all options
+  // For now, generate the first option
+  if (oneOf.options.length > 0) {
+    return generateFromElement(
+      grammar,
+      oneOf.options[0],
+      indent,
+      options,
+      depth
+    );
+  }
+  return "";
+}
+
+/**
+ * Generate from a List
+ * For Lists in schema definitions, we generate all items
+ */
+function generateList(
+  grammar: Grammar,
+  list: List,
+  indent: string,
+  options: GraphQLSDLOptions,
+  depth: number
+): string {
+  const nextIndent = depth + 1;
+  const items: string[] = [];
+
+  // Special handling for List of RootOperationTypeDefinition
+  // We need to generate all three operation types (query, mutation, subscription)
+  if (
+    list.element.kind === "NonTerminal" &&
+    list.element.name === "RootOperationTypeDefinition"
+  ) {
+    // Generate all three operation types
+    const operationTypes = ["query", "mutation", "subscription"];
+    const typeNames = ["Query", "Mutation", "Subscription"];
+
+    for (let i = 0; i < operationTypes.length; i++) {
+      const opType = operationTypes[i];
+      const typeName = typeNames[i];
+      const item = options.format
+        ? `${indent.repeat(nextIndent)}${opType}: ${typeName}`
+        : `${opType}: ${typeName}`;
+      items.push(item);
+    }
+
+    return items.join(options.format ? "\n" : " ");
+  }
+
+  // For other lists, generate a single item as placeholder
+  // In a full implementation, we'd need to know how many items to generate
+  const item = generateFromElement(
+    grammar,
+    list.element,
+    indent,
+    options,
+    depth
+  );
+
+  if (item) {
+    return item;
+  }
+
+  return "";
+}
+
+/**
+ * Generate schema definition specifically
+ * Parses the SchemaDefinition rule structure and generates the schema block
+ */
+function generateSchemaDefinition(
+  grammar: Grammar,
+  rule: ProductionRule,
+  indent: string,
+  options: GraphQLSDLOptions,
+  referencedTypes: Set<string>
+): string {
+  if (rule.definition.kind !== "Sequence") {
+    return "";
+  }
+
+  let foundSchemaKeyword = false;
+  let foundBraceL = false;
+  const rootOpDefs: string[] = [];
+
+  // Parse the sequence elements
+  for (const element of rule.definition.elements) {
+    // Skip optional Description
+    if (element.kind === "Optional") {
+      continue;
+    }
+
+    // Handle Terminal "schema"
+    if (element.kind === "Terminal" && element.name === "schema") {
+      foundSchemaKeyword = true;
+      continue;
+    }
+
+    // Handle BraceL
+    if (element.kind === "NonTerminal" && element.name === "BraceL") {
+      foundBraceL = true;
+      continue;
+    }
+
+    // Handle List of RootOperationTypeDefinition
+    if (element.kind === "List") {
+      const list = element as List;
+      if (
+        list.element.kind === "NonTerminal" &&
+        list.element.name === "RootOperationTypeDefinition"
+      ) {
+        // Parse RootOperationTypeDefinition to extract operation type and named type
+        const rootOpRule = grammar.rules["RootOperationTypeDefinition"];
+        if (rootOpRule && rootOpRule.definition.kind === "Sequence") {
+          // Generate all three operation types (query, mutation, subscription)
+          // by parsing the OperationType OneOf and generating each option
+          const operationTypeRule = grammar.rules["OperationType"];
+          if (operationTypeRule && operationTypeRule.definition.kind === "OneOf") {
+            const oneOf = operationTypeRule.definition as OneOf;
+            const operationTypes: string[] = [];
+
+            // Extract operation type keywords from terminals
+            for (const option of oneOf.options) {
+              if (option.kind === "Terminal") {
+                operationTypes.push(option.name);
+              }
+            }
+
+            // For each operation type, generate a root operation type definition
+            // Default type names: Query, Mutation, Subscription
+            const typeNames = ["Query", "Mutation", "Subscription"];
+
+            for (let i = 0; i < operationTypes.length; i++) {
+              const opType = operationTypes[i];
+              const typeName = typeNames[i] || "Type";
+              
+              // Track referenced types so we can generate them if missing
+              referencedTypes.add(typeName);
+              
+              const def = options.format
+                ? `${indent}${opType}: ${typeName}`
+                : `${opType}: ${typeName}`;
+              rootOpDefs.push(def);
+            }
+          }
+        }
+        continue;
+      }
+    }
+
+    // Handle BraceR - we'll add it at the end
+    if (element.kind === "NonTerminal" && element.name === "BraceR") {
+      continue;
+    }
+  }
+
+  // Build the final schema definition
+  if (foundSchemaKeyword) {
+    const parts: string[] = ["schema"];
+    if (foundBraceL) {
+      parts.push("{");
+    }
+    if (rootOpDefs.length > 0) {
+      if (options.format) {
+        parts.push(rootOpDefs.join("\n"));
+      } else {
+        parts.push(rootOpDefs.join(" "));
+      }
+    }
+    parts.push("}");
+
+    return parts.join(options.format ? "\n" : " ");
+  }
+
+  return "";
+}

@@ -1,0 +1,12 @@
+# TODO: Update when graphql-sdl generator is fully implemented
+# Expected output for interface-type-grammar.json
+#
+# Should generate:
+# interface InterfaceName {
+#   fieldName: FieldType
+# }
+
+interface InterfaceName {
+  fieldName: FieldType
+}
+
