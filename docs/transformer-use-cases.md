@@ -2705,3 +2705,37 @@ When implementing:
 - **Validation**: Verify grammar validity after each transformation
 - **Regression**: Ensure no breaking changes to existing functionality
 
+## Test Status
+
+### GraphQL SDL Generator Tests
+
+The following tests for the GraphQL SDL generator have been implemented and are passing:
+
+| Test ID | Description | Status |
+|---------|-------------|--------|
+| GEN-GSDL-001 | generates schema definition with root operation types | ✅ PASSED |
+| GEN-GSDL-002 | generates scalar type definition | ✅ PASSED |
+| GEN-GSDL-003 | generates object type definition with fields | ✅ PASSED |
+| GEN-GSDL-004 | generates interface type definition | ✅ PASSED |
+| GEN-GSDL-005 | respects format option | ⏳ PENDING |
+| GEN-GSDL-006 | respects includeDescriptions option | ⏳ PENDING |
+
+**Test Implementation Details:**
+- All tests validate and lint generated GraphQL using `graphql-js` and `graphql-eslint`
+- Tests compare generated output against expected fixtures using semantic AST comparison
+- Tests automatically generate minimal type definitions for referenced types
+- Tests automatically add Query type when needed for schema validity
+- Test reports are generated in `test-reports/` directory with detailed validation results
+
+**Comprehensive Test Plan:**
+- See [GraphQL Plugin Test Plan](./graphql-plugin-test-plan.md) for a complete systematic test plan covering both Generator and Parser plugins (~500+ tests)
+- The test plan is organized by grammar sections matching `src/grammar.ts`
+- Each test includes checkboxes to track completion status
+- Generator and Parser tests are tracked side-by-side since they are inverse operations
+
+**Related Documentation:**
+- See `tests/generators/graphql-sdl.test.ts` for test implementations
+- See `tests/helpers/schema-validator.ts` for validation utilities
+- See `tests/helpers/test-ids.ts` for test ID management
+- See [GraphQL Plugin Test Plan](./graphql-plugin-test-plan.md) for comprehensive test coverage plan (Generator + Parser)
+

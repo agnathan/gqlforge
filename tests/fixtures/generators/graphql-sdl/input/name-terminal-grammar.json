@@ -1,0 +1,54 @@
+{
+  "root": "Document",
+  "rules": {
+    "Document": {
+      "name": "Document",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "Definition"
+        }
+      }
+    },
+    "Definition": {
+      "name": "Definition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeSystemDefinition"
+      }
+    },
+    "TypeSystemDefinition": {
+      "name": "TypeSystemDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "ScalarTypeDefinition"
+      }
+    },
+    "ScalarTypeDefinition": {
+      "name": "ScalarTypeDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "Terminal",
+            "name": "scalar"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          }
+        ]
+      }
+    },
+    "Name": {
+      "name": "Name",
+      "definition": {
+        "kind": "Terminal",
+        "name": "Name",
+        "pattern": "[_A-Za-z][_0-9A-Za-z]*"
+      }
+    }
+  }
+}
+

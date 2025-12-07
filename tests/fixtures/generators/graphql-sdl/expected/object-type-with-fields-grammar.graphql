@@ -1,12 +1,11 @@
-# TODO: Update when graphql-sdl generator is fully implemented
-# Expected output for object-type-with-fields-grammar.json
-#
-# Should generate:
-# type TypeName {
-#   fieldName: FieldType
-# }
-
 type TypeName {
   fieldName: FieldType
 }
 
+type FieldType {
+  _: Boolean
+}
+
+type Query {
+  _: Boolean
+}
