@@ -1,0 +1,232 @@
+# Cursor Rules for gqlforge
+
+## Project Overview
+
+This is a TypeScript library for working with GraphQL schemas using a context-free grammar (CFG) representation. The project uses a plugin architecture with parsers, transformers, and generators.
+
+## Testing Architecture
+
+### Fixture-Based Testing
+
+All tests use fixture-based testing organized by plugin type:
+
+```
+tests/
+  fixtures/
+    parsers/{parser-name}/
+      valid/          # Valid input schemas
+      invalid/        # Invalid input schemas
+      expected/       # Expected grammar outputs
+      validation/    # Expected validation results
+      linting/        # Expected linting results
+    
+    transformers/{transformer-name}/
+      input/          # Input schemas/grammars
+      expected/       # Expected outputs
+      config/         # Transformer options
+      validation/     # Expected validation results
+      linting/        # Expected linting results
+    
+    generators/{generator-name}/
+      input/          # Input grammars
+      expected/       # Expected outputs
+      config/         # Generator options
+      validation/     # Expected validation results
+      linting/        # Expected linting results
+```
+
+### Test Organization
+
+Tests are organized by plugin type, mirroring the fixture structure:
+
+```
+tests/
+  parsers/
+    {parser-name}.test.ts
+  transformers/
+    {transformer-name}.test.ts
+  generators/
+    {generator-name}.test.ts
+```
+
+### Critical Testing Rules
+
+1. **ALL tests that generate GraphQL MUST validate and lint the output**
+   - Use `expectValidGraphQL()` helper from `tests/helpers/schema-validator.ts`
+   - This ensures generated GraphQL is both valid (spec-compliant) and follows best practices
+   - Tests will fail if validation/linting errors occur
+
+2. **Fixture Loading**
+   - Use `loadParserFixtures()`, `loadTransformerFixtures()`, or `loadGeneratorFixtures()`
+   - Import from `tests/helpers/fixtures.ts`
+   - Fixtures are organized by plugin name
+
+3. **Validation Requirements**
+   - Generator tests: Always validate generated GraphQL
+   - Transformer tests: Validate GraphQL generated from transformed grammar
+   - Parser tests: Validate GraphQL generated from parsed grammar (round-trip)
+
+4. **Error Capture for Regression**
+   - Use `captureValidationErrors()` to save validation results as fixtures
+   - Store expected validation/linting results in `validation/` and `linting/` directories
+   - Compare actual vs expected using `validateAndLintGraphQL()` with fixture path
+
+### Helper Functions
+
+**Fixture Loading:**
+```typescript
+import { loadGeneratorFixtures } from '../helpers/fixtures';
+const fixtures = loadGeneratorFixtures('json');
+const input = fixtures.input('simple-grammar.json');
+```
+
+**GraphQL Validation:**
+```typescript
+import { expectValidGraphQL } from '../helpers/schema-validator';
+
+// Required: Validate generated GraphQL
+await expectValidGraphQL(generatedSDL, undefined, {
+  failOnWarnings: false,  // Warnings OK, errors not OK
+});
+
+// With expected results fixture:
+await expectValidGraphQL(
+  generatedSDL,
+  'generators/json/validation/simple-valid.json',
+  { acceptableWarnings: ['@graphql-eslint/require-description'] }
+);
+```
+
+**Validation Result Capture:**
+```typescript
+import { captureValidationErrors } from '../helpers/schema-validator';
+
+const results = await captureValidationErrors(
+  schemaSDL,
+  'generators/json/validation/simple-valid.json',
+  { updateFixture: true, acceptableWarnings: [...] }
+);
+```
+
+### Test Patterns
+
+**Generator Test Pattern:**
+```typescript
+describe('{generator-name} generator', () => {
+  const fixtures = loadGeneratorFixtures('{generator-name}');
+  
+  it('generates valid GraphQL', async () => {
+    const input = fixtures.input('simple-grammar.json');
+    const output = generator.generate(input);
+    
+    // REQUIRED: Validate generated GraphQL
+    await expectValidGraphQL(output, undefined, {
+      failOnWarnings: false,
+    });
+  });
+});
+```
+
+**Transformer Test Pattern:**
+```typescript
+describe('{transformer-name} transformer', () => {
+  const fixtures = loadTransformerFixtures('{transformer-name}');
+  
+  it('transforms and generates valid GraphQL', async () => {
+    const options = fixtures.config('options.json');
+    const result = registry.transform(grammar, ['{transformer-name}'], {
+      '{transformer-name}': options,
+    });
+    
+    // Generate GraphQL from transformed grammar
+    const generatedSDL = registry.generate(result.grammar, 'graphql-sdl');
+    
+    // REQUIRED: Validate generated GraphQL
+    await expectValidGraphQL(generatedSDL.output as string, undefined, {
+      failOnWarnings: false,
+    });
+  });
+});
+```
+
+**Parser Test Pattern:**
+```typescript
+describe('{parser-name} parser', () => {
+  const fixtures = loadParserFixtures('{parser-name}');
+  
+  it('parses and generates valid GraphQL', async () => {
+    const schemaSDL = fixtures.valid('simple.graphql');
+    const parsedGrammar = parser.parse(schemaSDL);
+    
+    // Generate GraphQL from parsed grammar
+    const generatedSDL = registry.generate(parsedGrammar, 'graphql-sdl');
+    
+    // REQUIRED: Validate generated GraphQL (round-trip validation)
+    await expectValidGraphQL(generatedSDL.output as string, undefined, {
+      failOnWarnings: false,
+    });
+  });
+});
+```
+
+### Validation Result Fixture Format
+
+```json
+{
+  "isValid": true,
+  "errors": [],
+  "warnings": [
+    {
+      "message": "Type 'User' is missing a description",
+      "line": 2,
+      "ruleId": "@graphql-eslint/require-description"
+    }
+  ],
+  "acceptableWarnings": ["@graphql-eslint/require-description"]
+}
+```
+
+### Best Practices
+
+1. **Always validate GraphQL outputs** - No exceptions
+2. **Use fixtures for test data** - Don't inline test data
+3. **Organize by plugin** - Keep fixtures and tests together by plugin type
+4. **Capture validation results** - Store expected results for regression testing
+5. **Document acceptable warnings** - Use `acceptableWarnings` in fixtures
+6. **Fail on errors, not warnings** - Use `failOnWarnings: false` unless specifically testing for warnings
+7. **Update fixtures intentionally** - Use `updateFixture: true` only when intentionally updating expected results
+
+### Adding New Tests
+
+When adding a new test:
+
+1. Create fixtures in appropriate plugin directory
+2. Use fixture loading helpers
+3. **Always validate GraphQL outputs** using `expectValidGraphQL()`
+4. Store expected validation results if testing specific error scenarios
+5. Follow the test patterns above
+
+### Running Tests
+
+```bash
+npm test                    # Run all tests
+npm test -- --run          # Run once (no watch)
+npm test -- {pattern}      # Run specific tests
+npm test -- --ui           # UI mode
+```
+
+## Code Style
+
+- Use TypeScript strict mode
+- Prefer explicit types over `any`
+- Use async/await for async operations
+- Follow existing patterns for consistency
+
+## Plugin Architecture
+
+- **Parsers**: Convert external formats (e.g., GraphQL SDL) to Grammar
+- **Transformers**: Transform Grammar to Grammar
+- **Generators**: Convert Grammar to external formats (e.g., JSON, GraphQL SDL)
+
+All plugins are registered in `PluginRegistry` and follow consistent interfaces defined in `src/plugins/types.ts`.
+

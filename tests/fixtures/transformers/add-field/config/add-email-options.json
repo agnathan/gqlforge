@@ -1,0 +1,7 @@
+{
+  "targetTypeName": "User",
+  "fieldName": "email",
+  "fieldType": "String!",
+  "description": "User's email address"
+}
+
