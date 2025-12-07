@@ -278,3 +278,319 @@ export function assertValidSchema(
   }
 }
 
+/**
+ * Validation result fixture format
+ */
+export interface ValidationResultFixture {
+  isValid: boolean;
+  errors: Array<{
+    message: string;
+    line?: number;
+    column?: number;
+    ruleId?: string;
+    source?: "validation" | "lint";
+  }>;
+  warnings: Array<{
+    message: string;
+    line?: number;
+    column?: number;
+    ruleId?: string;
+  }>;
+  acceptableWarnings?: string[]; // Rule IDs that are acceptable
+  timestamp?: string;
+}
+
+/**
+ * Compare validation result with expected fixture
+ */
+export function compareValidationResults(
+  actual: SchemaCheckResult,
+  expected: ValidationResultFixture
+): {
+  matches: boolean;
+  differences: {
+    unexpectedErrors: SchemaIssue[];
+    unexpectedWarnings: SchemaIssue[];
+    missingExpectedErrors: SchemaIssue[];
+    missingExpectedWarnings: SchemaIssue[];
+  };
+} {
+  const actualErrors = actual.issues.filter((i) => i.severity === "error");
+  const actualWarnings = actual.issues.filter(
+    (i) =>
+      i.severity === "warning" &&
+      !expected.acceptableWarnings?.includes(i.ruleId || "")
+  );
+
+  const expectedErrorMessages = new Set(
+    expected.errors.map((e) => `${e.message}:${e.line}:${e.column}`)
+  );
+  const expectedWarningMessages = new Set(
+    expected.warnings.map((w) => `${w.message}:${w.line}:${w.ruleId}`)
+  );
+
+  const unexpectedErrors = actualErrors.filter(
+    (e) => !expectedErrorMessages.has(`${e.message}:${e.line}:${e.column}`)
+  );
+  const unexpectedWarnings = actualWarnings.filter(
+    (w) =>
+      !expectedWarningMessages.has(
+        `${w.message}:${w.line}:${w.ruleId || ""}`
+      )
+  );
+
+  const missingExpectedErrors = expected.errors.filter((e) => {
+    const key = `${e.message}:${e.line}:${e.column}`;
+    return !actualErrors.some(
+      (a) => `${a.message}:${a.line}:${a.column}` === key
+    );
+  });
+
+  const missingExpectedWarnings = expected.warnings.filter((w) => {
+    const key = `${w.message}:${w.line}:${w.ruleId || ""}`;
+    return !actualWarnings.some(
+      (a) => `${a.message}:${a.line}:${a.ruleId || ""}` === key
+    );
+  });
+
+  const matches =
+    unexpectedErrors.length === 0 &&
+    unexpectedWarnings.length === 0 &&
+    missingExpectedErrors.length === 0 &&
+    missingExpectedWarnings.length === 0 &&
+    actual.isValid === expected.isValid;
+
+  return {
+    matches,
+    differences: {
+      unexpectedErrors,
+      unexpectedWarnings,
+      missingExpectedErrors: missingExpectedErrors.map((e) => ({
+        message: e.message,
+        line: e.line,
+        column: e.column,
+        ruleId: e.ruleId,
+        severity: "error" as const,
+        source: (e.source || "validation") as "validation" | "lint",
+      })),
+      missingExpectedWarnings: missingExpectedWarnings.map((w) => ({
+        message: w.message,
+        line: w.line,
+        column: w.column,
+        ruleId: w.ruleId,
+        severity: "warning" as const,
+        source: "lint" as const,
+      })),
+    },
+  };
+}
+
+/**
+ * Format validation differences for error messages
+ */
+export function formatValidationDifferences(differences: {
+  unexpectedErrors: SchemaIssue[];
+  unexpectedWarnings: SchemaIssue[];
+  missingExpectedErrors: SchemaIssue[];
+  missingExpectedWarnings: SchemaIssue[];
+}): string {
+  const lines: string[] = [];
+
+  if (differences.unexpectedErrors.length > 0) {
+    lines.push("\nUnexpected Errors:");
+    differences.unexpectedErrors.forEach((e) => {
+      const loc = e.line ? ` (${e.line}${e.column ? `:${e.column}` : ""})` : "";
+      lines.push(`  ✗ ${e.message}${loc}`);
+    });
+  }
+
+  if (differences.unexpectedWarnings.length > 0) {
+    lines.push("\nUnexpected Warnings:");
+    differences.unexpectedWarnings.forEach((w) => {
+      const loc = w.line ? ` (${w.line}${w.column ? `:${w.column}` : ""})` : "";
+      const rule = w.ruleId ? ` [${w.ruleId}]` : "";
+      lines.push(`  ⚠ ${w.message}${loc}${rule}`);
+    });
+  }
+
+  if (differences.missingExpectedErrors.length > 0) {
+    lines.push("\nMissing Expected Errors:");
+    differences.missingExpectedErrors.forEach((e) => {
+      const loc = e.line ? ` (${e.line}${e.column ? `:${e.column}` : ""})` : "";
+      lines.push(`  ✗ ${e.message}${loc}`);
+    });
+  }
+
+  if (differences.missingExpectedWarnings.length > 0) {
+    lines.push("\nMissing Expected Warnings:");
+    differences.missingExpectedWarnings.forEach((w) => {
+      const loc = w.line ? ` (${w.line}${w.column ? `:${w.column}` : ""})` : "";
+      const rule = w.ruleId ? ` [${w.ruleId}]` : "";
+      lines.push(`  ⚠ ${w.message}${loc}${rule}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Validate GraphQL and compare with expected results fixture
+ */
+export async function validateAndLintGraphQL(
+  schemaSDL: string,
+  expectedResultsPath?: string,
+  options?: {
+    failOnUnexpectedErrors?: boolean; // Default: true
+    failOnUnexpectedWarnings?: boolean; // Default: false
+    acceptableWarnings?: string[]; // Rule IDs that are OK
+  }
+): Promise<{
+  result: SchemaCheckResult;
+  matches: boolean;
+  differences: {
+    unexpectedErrors: SchemaIssue[];
+    unexpectedWarnings: SchemaIssue[];
+    missingExpectedErrors: SchemaIssue[];
+    missingExpectedWarnings: SchemaIssue[];
+  };
+}> {
+  const result = await checkGraphQLSchema(schemaSDL);
+
+  if (!expectedResultsPath) {
+    // No fixture - just validate it's clean
+    const errors = result.issues.filter((i) => i.severity === "error");
+    return {
+      result,
+      matches: result.isValid && errors.length === 0,
+      differences: {
+        unexpectedErrors: errors,
+        unexpectedWarnings: [],
+        missingExpectedErrors: [],
+        missingExpectedWarnings: [],
+      },
+    };
+  }
+
+  // Load expected results fixture
+  const { loadFixtureJSON } = await import("./fixtures");
+  const expected = loadFixtureJSON<ValidationResultFixture>(
+    expectedResultsPath
+  );
+
+  // Compare actual vs expected
+  const comparison = compareValidationResults(result, expected);
+
+  return {
+    result,
+    ...comparison,
+  };
+}
+
+/**
+ * Assert GraphQL is valid and matches expected validation/linting results
+ * This is the primary helper for tests that generate GraphQL
+ */
+export async function expectValidGraphQL(
+  schemaSDL: string,
+  expectedResultsPath?: string,
+  options?: {
+    failOnWarnings?: boolean;
+    acceptableWarnings?: string[];
+    failOnUnexpectedErrors?: boolean;
+    failOnUnexpectedWarnings?: boolean;
+  }
+): Promise<SchemaCheckResult> {
+  const {
+    failOnWarnings = false,
+    acceptableWarnings,
+    failOnUnexpectedErrors = true,
+    failOnUnexpectedWarnings = false,
+  } = options || {};
+
+  const { result, matches, differences } = await validateAndLintGraphQL(
+    schemaSDL,
+    expectedResultsPath,
+    {
+      failOnUnexpectedErrors,
+      failOnUnexpectedWarnings,
+      acceptableWarnings,
+    }
+  );
+
+  // Fail if validation errors exist
+  if (!result.isValid) {
+    throw new Error(
+      `Schema is invalid:\n${formatSchemaIssues(result.issues)}`
+    );
+  }
+
+  // Fail if doesn't match expected fixture
+  if (expectedResultsPath && !matches) {
+    const diffMessage = formatValidationDifferences(differences);
+    throw new Error(
+      `Schema validation/linting does not match expected results:\n${diffMessage}`
+    );
+  }
+
+  // Optionally fail on warnings
+  if (failOnWarnings) {
+    const warnings = result.issues.filter((i) => i.severity === "warning");
+    if (warnings.length > 0) {
+      throw new Error(
+        `Schema has warnings:\n${formatSchemaIssues(warnings)}`
+      );
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Capture validation errors for regression testing
+ * Creates/updates validation fixture with current results
+ */
+export async function captureValidationErrors(
+  schemaSDL: string,
+  fixturePath: string,
+  options?: {
+    updateFixture?: boolean; // Update fixture if errors change
+    acceptableWarnings?: string[];
+  }
+): Promise<ValidationResultFixture> {
+  const result = await checkGraphQLSchema(schemaSDL);
+
+  // Filter acceptable warnings
+  const errors = result.issues.filter((i) => i.severity === "error");
+  const warnings = result.issues.filter(
+    (i) =>
+      i.severity === "warning" &&
+      !options?.acceptableWarnings?.includes(i.ruleId || "")
+  );
+
+  const validationResults: ValidationResultFixture = {
+    isValid: result.isValid,
+    errors: errors.map((i) => ({
+      message: i.message,
+      line: i.line,
+      column: i.column,
+      ruleId: i.ruleId,
+      source: i.source,
+    })),
+    warnings: warnings.map((i) => ({
+      message: i.message,
+      line: i.line,
+      column: i.column,
+      ruleId: i.ruleId,
+    })),
+    acceptableWarnings: options?.acceptableWarnings,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (options?.updateFixture) {
+    const { saveFixtureJSON } = await import("./fixtures");
+    saveFixtureJSON(fixturePath, validationResults);
+  }
+
+  return validationResults;
+}
+
