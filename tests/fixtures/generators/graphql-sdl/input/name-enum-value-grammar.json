@@ -1,0 +1,121 @@
+{
+  "root": "Document",
+  "rules": {
+    "Document": {
+      "name": "Document",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "Definition"
+        }
+      }
+    },
+    "Definition": {
+      "name": "Definition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeSystemDefinition"
+      }
+    },
+    "TypeSystemDefinition": {
+      "name": "TypeSystemDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeDefinition"
+      }
+    },
+    "TypeDefinition": {
+      "name": "TypeDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "EnumTypeDefinition"
+      }
+    },
+    "EnumTypeDefinition": {
+      "name": "EnumTypeDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "Terminal",
+            "name": "enum"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "EnumValuesDefinition"
+          }
+        ]
+      }
+    },
+    "EnumValuesDefinition": {
+      "name": "EnumValuesDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "BraceL"
+          },
+          {
+            "kind": "List",
+            "element": {
+              "kind": "NonTerminal",
+              "name": "EnumValueDefinition"
+            }
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "BraceR"
+          }
+        ]
+      }
+    },
+    "EnumValueDefinition": {
+      "name": "EnumValueDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "EnumValue"
+          }
+        ]
+      }
+    },
+    "EnumValue": {
+      "name": "EnumValue",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "Name"
+      }
+    },
+    "Name": {
+      "name": "Name",
+      "definition": {
+        "kind": "Terminal",
+        "name": "Name",
+        "pattern": "[_A-Za-z][_0-9A-Za-z]*"
+      }
+    },
+    "BraceL": {
+      "name": "BraceL",
+      "definition": {
+        "kind": "Terminal",
+        "name": "{"
+      }
+    },
+    "BraceR": {
+      "name": "BraceR",
+      "definition": {
+        "kind": "Terminal",
+        "name": "}"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,6 @@
+scalar ScalarName
+
+type Query {
+  _: Boolean
+}
+

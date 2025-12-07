@@ -1,0 +1,11 @@
+type TypeName {
+  fieldName : FieldType
+}
+type FieldType {
+  _: Boolean
+}
+
+type Query {
+  _: Boolean
+}
+

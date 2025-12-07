@@ -1,0 +1,4 @@
+type 123Invalid {
+  field: String
+}
+

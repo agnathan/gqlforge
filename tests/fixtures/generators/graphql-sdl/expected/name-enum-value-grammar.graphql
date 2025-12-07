@@ -1,0 +1,8 @@
+enum EnumName {
+  ENUM_VALUE
+}
+
+type Query {
+  _: Boolean
+}
+

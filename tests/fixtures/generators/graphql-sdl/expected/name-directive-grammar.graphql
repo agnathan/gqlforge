@@ -1,0 +1,6 @@
+type TypeName @directiveName
+
+type Query {
+  _: Boolean
+}
+

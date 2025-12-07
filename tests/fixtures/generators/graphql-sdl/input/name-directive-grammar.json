@@ -1,0 +1,101 @@
+{
+  "root": "Document",
+  "rules": {
+    "Document": {
+      "name": "Document",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "Definition"
+        }
+      }
+    },
+    "Definition": {
+      "name": "Definition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeSystemDefinition"
+      }
+    },
+    "TypeSystemDefinition": {
+      "name": "TypeSystemDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeDefinition"
+      }
+    },
+    "TypeDefinition": {
+      "name": "TypeDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "ObjectTypeDefinition"
+      }
+    },
+    "ObjectTypeDefinition": {
+      "name": "ObjectTypeDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "Terminal",
+            "name": "type"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          },
+          {
+            "kind": "Optional",
+            "element": {
+              "kind": "NonTerminal",
+              "name": "DirectivesConst"
+            }
+          }
+        ]
+      }
+    },
+    "DirectivesConst": {
+      "name": "DirectivesConst",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "DirectiveConst"
+        }
+      }
+    },
+    "DirectiveConst": {
+      "name": "DirectiveConst",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "At"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          }
+        ]
+      }
+    },
+    "Name": {
+      "name": "Name",
+      "definition": {
+        "kind": "Terminal",
+        "name": "Name",
+        "pattern": "[_A-Za-z][_0-9A-Za-z]*"
+      }
+    },
+    "At": {
+      "name": "At",
+      "definition": {
+        "kind": "Terminal",
+        "name": "@"
+      }
+    }
+  }
+}
+
