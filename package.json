@@ -25,7 +25,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist test-results.json",
     "prepublishOnly": "npm run clean && npm run build",
-    "transform-example": "tsx scripts/transform-example.ts"
+    "transform-example": "tsx scripts/transform-example.ts",
+    "add-field-example": "tsx scripts/add-field-example.ts"
   },
   "keywords": [],
   "author": "",
