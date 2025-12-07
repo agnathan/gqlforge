@@ -11,6 +11,9 @@ coverage/
 # Test results
 test-results.json
 
+# Output files
+output/
+
 # IDE
 .vscode/
 .idea/

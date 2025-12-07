@@ -6,6 +6,7 @@ This directory contains comprehensive documentation for the GraphQL Grammar to Z
 
 - **[GraphQL to Zod Patterns](./graphql-to-zod-patterns.md)** - Complete guide demonstrating how to translate common GraphQL patterns into Zod GraphQL schemas
 - **[GraphQL to ZodQL Conversion](./graphql-to-zodql-conversion.md)** - Step-by-step guide for converting GraphQL schema files to ZodQL Schema
+- **[Transformer Use Cases](./transformer-use-cases.md)** - Comprehensive list of use cases for transformers that alter grammar elements
 - **[Plugin Naming Convention](./plugin-naming-convention.md)** - Explanation of the three plugin types: Parser, Transformer, and Generator
 
 ## Quick Start
