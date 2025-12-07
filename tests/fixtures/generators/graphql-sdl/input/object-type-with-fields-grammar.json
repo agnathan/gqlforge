@@ -1,0 +1,139 @@
+{
+  "root": "Document",
+  "rules": {
+    "Document": {
+      "name": "Document",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "Definition"
+        }
+      }
+    },
+    "Definition": {
+      "name": "Definition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeSystemDefinition"
+      }
+    },
+    "TypeSystemDefinition": {
+      "name": "TypeSystemDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "ObjectTypeDefinition"
+      }
+    },
+    "ObjectTypeDefinition": {
+      "name": "ObjectTypeDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "Terminal",
+            "name": "type"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          },
+          {
+            "kind": "Optional",
+            "element": {
+              "kind": "NonTerminal",
+              "name": "FieldsDefinition"
+            }
+          }
+        ]
+      }
+    },
+    "FieldsDefinition": {
+      "name": "FieldsDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "BraceL"
+          },
+          {
+            "kind": "List",
+            "element": {
+              "kind": "NonTerminal",
+              "name": "FieldDefinition"
+            }
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "BraceR"
+          }
+        ]
+      }
+    },
+    "FieldDefinition": {
+      "name": "FieldDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "Name"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Colon"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Type"
+          }
+        ]
+      }
+    },
+    "Type": {
+      "name": "Type",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "NamedType"
+      }
+    },
+    "NamedType": {
+      "name": "NamedType",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "Name"
+      }
+    },
+    "Name": {
+      "name": "Name",
+      "definition": {
+        "kind": "Terminal",
+        "name": "Name",
+        "pattern": "[_A-Za-z][_0-9A-Za-z]*"
+      }
+    },
+    "BraceL": {
+      "name": "BraceL",
+      "definition": {
+        "kind": "Terminal",
+        "name": "{"
+      }
+    },
+    "BraceR": {
+      "name": "BraceR",
+      "definition": {
+        "kind": "Terminal",
+        "name": "}"
+      }
+    },
+    "Colon": {
+      "name": "Colon",
+      "definition": {
+        "kind": "Terminal",
+        "name": ":"
+      }
+    }
+  }
+}
+

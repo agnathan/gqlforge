@@ -15,6 +15,7 @@ import {
   GraphQLSchema,
   Source,
 } from "graphql";
+import { parse, DocumentNode, visit, Kind } from "graphql/language";
 import { ESLint } from "eslint";
 import type { Linter } from "eslint";
 
@@ -48,6 +49,24 @@ export interface SchemaCheckOptions {
    * File path for ESLint (helps with rule resolution)
    */
   filePath?: string;
+}
+
+export interface FixtureComparisonOptions {
+  /**
+   * Expected GraphQL SDL fixture content (string)
+   */
+  expectedFixture?: string;
+
+  /**
+   * Comparison mode: 'exact' | 'normalized' | 'semantic' (default: 'semantic')
+   */
+  compareMode?: "exact" | "normalized" | "semantic";
+}
+
+export interface FixtureComparisonResult {
+  matches: boolean;
+  diff?: string;
+  error?: string;
 }
 
 /**
@@ -487,6 +506,140 @@ export async function validateAndLintGraphQL(
 }
 
 /**
+ * Normalize GraphQL AST by removing locations and sorting
+ */
+function normalizeAST(ast: DocumentNode): DocumentNode {
+  // Create a deep copy without location information
+  const normalized = visit(ast, {
+    enter(node) {
+      // Remove location information
+      if ("loc" in node) {
+        const { loc, ...rest } = node as any;
+        return rest;
+      }
+      return node;
+    },
+  });
+
+  return normalized as DocumentNode;
+}
+
+/**
+ * Normalize string by removing extra whitespace and normalizing line endings
+ */
+function normalizeString(str: string): string {
+  return str
+    .replace(/\r\n/g, "\n") // Normalize line endings
+    .replace(/\r/g, "\n")
+    .replace(/\n\s*\n\s*\n/g, "\n\n") // Collapse multiple blank lines
+    .replace(/[ \t]+/g, " ") // Normalize spaces
+    .replace(/[ \t]*\n[ \t]*/g, "\n") // Remove trailing/leading whitespace from lines
+    .trim();
+}
+
+/**
+ * Deep equality check for AST nodes
+ */
+function deepEqualAST(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== typeof b) return false;
+
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((item, index) => deepEqualAST(item, b[index]));
+  }
+
+  if (typeof a === "object" && typeof b === "object") {
+    const keysA = Object.keys(a).filter((k) => k !== "loc" && k !== "kind");
+    const keysB = Object.keys(b).filter((k) => k !== "loc" && k !== "kind");
+
+    // Check kind first (if present)
+    if ("kind" in a && "kind" in b && a.kind !== b.kind) {
+      return false;
+    }
+
+    if (keysA.length !== keysB.length) return false;
+
+    for (const key of keysA) {
+      if (!keysB.includes(key)) return false;
+      if (!deepEqualAST(a[key], b[key])) return false;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Compare two GraphQL SDL strings semantically using AST comparison
+ */
+function compareGraphQLSchemas(
+  actual: string,
+  expected: string,
+  mode: "exact" | "normalized" | "semantic" = "semantic"
+): FixtureComparisonResult {
+  if (mode === "exact") {
+    if (actual === expected) {
+      return { matches: true };
+    }
+    return {
+      matches: false,
+      diff: `Expected exact match but strings differ.\n\nExpected:\n${expected}\n\nActual:\n${actual}`,
+    };
+  }
+
+  if (mode === "normalized") {
+    const normalizedActual = normalizeString(actual);
+    const normalizedExpected = normalizeString(expected);
+    if (normalizedActual === normalizedExpected) {
+      return { matches: true };
+    }
+    return {
+      matches: false,
+      diff: `Expected normalized match but strings differ.\n\nExpected:\n${normalizedExpected}\n\nActual:\n${normalizedActual}`,
+    };
+  }
+
+  // Semantic comparison (mode === "semantic")
+  try {
+    const actualAST = parse(actual);
+    const expectedAST = parse(expected);
+
+    const normalizedActual = normalizeAST(actualAST);
+    const normalizedExpected = normalizeAST(expectedAST);
+
+    // Deep comparison of AST nodes
+    const matches = deepEqualAST(normalizedActual, normalizedExpected);
+
+    if (matches) {
+      return { matches: true };
+    }
+
+    return {
+      matches: false,
+      diff: `AST structures differ. Expected and actual schemas are semantically different.`,
+    };
+  } catch (error) {
+    // Fallback to normalized string comparison if parsing fails
+    const normalizedActual = normalizeString(actual);
+    const normalizedExpected = normalizeString(expected);
+    const matches = normalizedActual === normalizedExpected;
+
+    if (matches) {
+      return { matches: true };
+    }
+
+    return {
+      matches: false,
+      error: error instanceof Error ? error.message : String(error),
+      diff: `Failed to parse for semantic comparison, falling back to normalized string comparison.\n\nExpected:\n${normalizedExpected}\n\nActual:\n${normalizedActual}`,
+    };
+  }
+}
+
+/**
  * Assert GraphQL is valid and matches expected validation/linting results
  * This is the primary helper for tests that generate GraphQL
  */
@@ -498,6 +651,8 @@ export async function expectValidGraphQL(
     acceptableWarnings?: string[];
     failOnUnexpectedErrors?: boolean;
     failOnUnexpectedWarnings?: boolean;
+    expectedFixture?: string;
+    compareMode?: "exact" | "normalized" | "semantic";
   }
 ): Promise<SchemaCheckResult> {
   const {
@@ -505,6 +660,8 @@ export async function expectValidGraphQL(
     acceptableWarnings,
     failOnUnexpectedErrors = true,
     failOnUnexpectedWarnings = false,
+    expectedFixture,
+    compareMode = "semantic",
   } = options || {};
 
   const { result, matches, differences } = await validateAndLintGraphQL(
@@ -530,6 +687,27 @@ export async function expectValidGraphQL(
     throw new Error(
       `Schema validation/linting does not match expected results:\n${diffMessage}`
     );
+  }
+
+  // Compare with expected GraphQL SDL fixture if provided
+  if (expectedFixture) {
+    const comparison = compareGraphQLSchemas(
+      schemaSDL,
+      expectedFixture,
+      compareMode
+    );
+
+    if (!comparison.matches) {
+      const errorMessage = [
+        `Generated GraphQL does not match expected fixture:`,
+        comparison.diff || "",
+        comparison.error ? `\nError: ${comparison.error}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      throw new Error(errorMessage);
+    }
   }
 
   // Optionally fail on warnings

@@ -3,20 +3,31 @@
  * 
  * Tests the GraphQL SDL generator plugin with fixture-based testing.
  * All generated GraphQL schemas are validated and linted.
+ * 
+ * Tests are organized following the GraphQL specification structure in src/grammar.ts:
+ * - Schema Definition (3.3)
+ * - Scalar Types (3.5)
+ * - Object Types (3.6)
+ * - Interface Types (3.7)
+ * - Union Types (3.8)
+ * - Enum Types (3.9)
+ * - Input Object Types (3.10)
+ * - Directive Definitions (3.13)
  */
 
 import { describe, it, expect } from "vitest";
 import { graphqlSDLGenerator } from "../../src/plugins/generators/graphql-sdl";
 import { loadGeneratorFixtures } from "../helpers/fixtures";
 import { expectValidGraphQL } from "../helpers/schema-validator";
-import { GraphQLGrammar } from "../../src/grammar";
+import { GraphQLGrammar, type Grammar } from "../../src/grammar";
 
 describe("graphql-sdl generator", () => {
   const fixtures = loadGeneratorFixtures("graphql-sdl");
 
-  describe("generates output", () => {
-    it("generates string output from grammar", () => {
-      const input = fixtures.input("simple-grammar.json");
+  describe("3.3 Schema Definition", () => {
+    it("generates schema definition with root operation types", async () => {
+      const input = fixtures.input("schema-definition-grammar.json") as Grammar;
+      const expected = fixtures.expected("schema-definition-grammar.graphql");
       const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
@@ -24,46 +35,81 @@ describe("graphql-sdl generator", () => {
 
       expect(typeof output).toBe("string");
       expect(output.length).toBeGreaterThan(0);
-    });
 
-    it("generates string output from GraphQLGrammar", () => {
-      const output = graphqlSDLGenerator.generate(GraphQLGrammar, {
+      // REQUIRED: Validate generated GraphQL and compare with expected fixture
+      // Note: Currently placeholder - uncomment when generator is implemented
+      // await expectValidGraphQL(output, undefined, {
+      //   failOnWarnings: false,
+      //   expectedFixture: expected,
+      //   compareMode: "semantic",
+      // });
+    });
+  });
+
+  describe("3.5 Scalar Type Definition", () => {
+    it("generates scalar type definition", async () => {
+      const input = fixtures.input("scalar-type-grammar.json") as Grammar;
+      const expected = fixtures.expected("scalar-type-grammar.graphql");
+      const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
       });
 
       expect(typeof output).toBe("string");
       expect(output.length).toBeGreaterThan(0);
-    });
 
-    // Note: The graphql-sdl generator is currently a placeholder.
-    // Once it's fully implemented, uncomment and update these tests:
-    /*
-    it("generates valid GraphQL schema from grammar", async () => {
-      const input = fixtures.input("simple-grammar.json");
+      // REQUIRED: Validate generated GraphQL and compare with expected fixture
+      // Note: Currently placeholder - uncomment when generator is implemented
+      // await expectValidGraphQL(output, undefined, {
+      //   failOnWarnings: false,
+      //   expectedFixture: expected,
+      //   compareMode: "semantic",
+      // });
+    });
+  });
+
+  describe("3.6 Object Type Definition", () => {
+    it("generates object type definition with fields", async () => {
+      const input = fixtures.input("object-type-with-fields-grammar.json") as Grammar;
+      const expected = fixtures.expected("object-type-with-fields-grammar.graphql");
       const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
       });
 
-      // REQUIRED: Validate generated GraphQL
-      await expectValidGraphQL(output, undefined, {
-        failOnWarnings: false,
-      });
-    });
+      expect(typeof output).toBe("string");
+      expect(output.length).toBeGreaterThan(0);
 
-    it("generates valid GraphQL from GraphQLGrammar", async () => {
-      const output = graphqlSDLGenerator.generate(GraphQLGrammar, {
+      // REQUIRED: Validate generated GraphQL and compare with expected fixture
+      // Note: Currently placeholder - uncomment when generator is implemented
+      // await expectValidGraphQL(output, undefined, {
+      //   failOnWarnings: false,
+      //   expectedFixture: expected,
+      //   compareMode: "semantic",
+      // });
+    });
+  });
+
+  describe("3.7 Interface Type Definition", () => {
+    it("generates interface type definition", async () => {
+      const input = fixtures.input("interface-type-grammar.json") as Grammar;
+      const expected = fixtures.expected("interface-type-grammar.graphql");
+      const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
       });
 
-      // REQUIRED: Validate generated GraphQL
-      await expectValidGraphQL(output, undefined, {
-        failOnWarnings: false,
-      });
+      expect(typeof output).toBe("string");
+      expect(output.length).toBeGreaterThan(0);
+
+      // REQUIRED: Validate generated GraphQL and compare with expected fixture
+      // Note: Currently placeholder - uncomment when generator is implemented
+      // await expectValidGraphQL(output, undefined, {
+      //   failOnWarnings: false,
+      //   expectedFixture: expected,
+      //   compareMode: "semantic",
+      // });
     });
-    */
   });
 
   describe("configuration options", () => {
@@ -94,4 +140,3 @@ describe("graphql-sdl generator", () => {
     });
   });
 });
-

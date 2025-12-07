@@ -1,0 +1,133 @@
+{
+  "root": "Document",
+  "rules": {
+    "Document": {
+      "name": "Document",
+      "definition": {
+        "kind": "List",
+        "element": {
+          "kind": "NonTerminal",
+          "name": "Definition"
+        }
+      }
+    },
+    "Definition": {
+      "name": "Definition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "TypeSystemDefinition"
+      }
+    },
+    "TypeSystemDefinition": {
+      "name": "TypeSystemDefinition",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "SchemaDefinition"
+      }
+    },
+    "SchemaDefinition": {
+      "name": "SchemaDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "Terminal",
+            "name": "schema"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "BraceL"
+          },
+          {
+            "kind": "List",
+            "element": {
+              "kind": "NonTerminal",
+              "name": "RootOperationTypeDefinition"
+            }
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "BraceR"
+          }
+        ]
+      }
+    },
+    "RootOperationTypeDefinition": {
+      "name": "RootOperationTypeDefinition",
+      "definition": {
+        "kind": "Sequence",
+        "elements": [
+          {
+            "kind": "NonTerminal",
+            "name": "OperationType"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "Colon"
+          },
+          {
+            "kind": "NonTerminal",
+            "name": "NamedType"
+          }
+        ]
+      }
+    },
+    "OperationType": {
+      "name": "OperationType",
+      "definition": {
+        "kind": "OneOf",
+        "options": [
+          {
+            "kind": "Terminal",
+            "name": "query"
+          },
+          {
+            "kind": "Terminal",
+            "name": "mutation"
+          },
+          {
+            "kind": "Terminal",
+            "name": "subscription"
+          }
+        ]
+      }
+    },
+    "NamedType": {
+      "name": "NamedType",
+      "definition": {
+        "kind": "NonTerminal",
+        "name": "Name"
+      }
+    },
+    "Name": {
+      "name": "Name",
+      "definition": {
+        "kind": "Terminal",
+        "name": "Name",
+        "pattern": "[_A-Za-z][_0-9A-Za-z]*"
+      }
+    },
+    "BraceL": {
+      "name": "BraceL",
+      "definition": {
+        "kind": "Terminal",
+        "name": "{"
+      }
+    },
+    "BraceR": {
+      "name": "BraceR",
+      "definition": {
+        "kind": "Terminal",
+        "name": "}"
+      }
+    },
+    "Colon": {
+      "name": "Colon",
+      "definition": {
+        "kind": "Terminal",
+        "name": ":"
+      }
+    }
+  }
+}
+
