@@ -43,14 +43,14 @@ export const NonTerminalSchema: z.ZodType<NonTerminal> = z.object({
  */
 export const GrammarElementSchema: z.ZodType<GrammarElement> = z.lazy(() =>
   z.discriminatedUnion("kind", [
-    TerminalSchema,
-    NonTerminalSchema,
-    SequenceSchema,
-    OneOfSchema,
-    OptionalSchema,
-    ListSchema,
+    TerminalSchema as unknown as z.ZodObject<any>,
+    NonTerminalSchema as unknown as z.ZodObject<any>,
+    SequenceSchema as unknown as z.ZodObject<any>,
+    OneOfSchema as unknown as z.ZodObject<any>,
+    OptionalSchema as unknown as z.ZodObject<any>,
+    ListSchema as unknown as z.ZodObject<any>,
   ])
-);
+) as unknown as z.ZodType<GrammarElement>;
 
 /**
  * Sequence schema - represents ordered sequences of elements

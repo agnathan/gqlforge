@@ -317,7 +317,7 @@ export class PluginRegistry {
    * @param options - Parser-specific options
    * @returns Result with parsed grammar
    */
-  parse<TInput = string>(
+  parse<TInput extends string = string>(
     input: TInput,
     parserId: string,
     options?: PluginOptions
@@ -345,7 +345,7 @@ export class PluginRegistry {
         }
       }
 
-      const grammar = parser.parse(input, pluginOptions);
+      const grammar = parser.parse(input as string, pluginOptions);
       
       return {
         grammar,
