@@ -345,6 +345,105 @@ This will display:
 
 If multiple reports exist for the same test ID, the most recent one is shown by default.
 
+### Preparing Tests ("Prep Test")
+
+When asked to "prep test" or "prepare test" with a test ID (e.g., "prep test GEN-GSDL-002"), the following steps must be performed to set up proper test reporting:
+
+1. **Add Test Report Initialization**
+   - Add `initTestReport()` call immediately after loading fixtures
+   - Include: `testId`, `description`, `input`, `expectedOutput`
+
+2. **Add GraphQL Validation**
+   - Replace any commented-out validation with active `expectValidGraphQL()` call
+   - Include all required options:
+     - `failOnWarnings: false`
+     - `expectedFixture: expected`
+     - `compareMode: "semantic"`
+     - `saveOutput` (conditional on `SAVE_TEST_OUTPUTS` env var)
+     - `pluginType` and `pluginName`
+     - `testId: TEST_ID`
+
+3. **Add Success Reporting**
+   - Wrap validation in try/catch block
+   - Call `reportTestPassed()` in the try block with:
+     - `testId`, `description`, `input`, `expectedOutput`, `actualOutput`, `validationResult`
+
+4. **Add Error Handling & Failure Reporting**
+   - In catch block, call `reportTestFailed()` with:
+     - `testId`, `description`, `input`, `expectedOutput`, `actualOutput`, `validationResult`
+     - Error object (properly typed)
+   - Re-throw the error to fail the test
+
+5. **Add Required Imports**
+   - Import `initTestReport`, `reportTestPassed`, `reportTestFailed` from `../helpers/report-test`
+   - Import `SchemaCheckResult` type from `../helpers/schema-validator`
+
+**Example Pattern:**
+```typescript
+it(`[${TEST_ID}] test description`, async () => {
+  const input = fixtures.input("input.json") as Grammar;
+  const expected = fixtures.expected("expected.graphql");
+  
+  // Initialize test report context
+  initTestReport({
+    testId: TEST_ID,
+    description: "test description",
+    input,
+    expectedOutput: expected,
+  });
+  
+  const output = generator.generate(input, options);
+
+  expect(typeof output).toBe("string");
+  expect(output.length).toBeGreaterThan(0);
+
+  // REQUIRED: Validate generated GraphQL and compare with expected fixture
+  // Validation errors will cause the test to fail and be reported
+  let validationResult: SchemaCheckResult | undefined;
+  try {
+    validationResult = await expectValidGraphQL(output, undefined, {
+      failOnWarnings: false,
+      expectedFixture: expected,
+      compareMode: "semantic",
+      saveOutput:
+        process.env.SAVE_TEST_OUTPUTS === "true"
+          ? "expected.graphql"
+          : false,
+      pluginType: "generators",
+      pluginName: "graphql-sdl",
+      testId: TEST_ID,
+    });
+    
+    // Report test passed
+    reportTestPassed({
+      testId: TEST_ID,
+      description: "test description",
+      input,
+      expectedOutput: expected,
+      actualOutput: output,
+      validationResult,
+    });
+  } catch (error) {
+    // Report test failed
+    reportTestFailed(
+      {
+        testId: TEST_ID,
+        description: "test description",
+        input,
+        expectedOutput: expected,
+        actualOutput: output,
+        validationResult,
+      },
+      error instanceof Error ? error : new Error(String(error))
+    );
+    throw error;
+  }
+});
+```
+
+**Reference Implementation:**
+- See `tests/generators/graphql-sdl.test.ts` test `GEN-GSDL-001` or `GEN-GSDL-002` for complete examples
+
 ## Code Style
 
 - Use TypeScript strict mode

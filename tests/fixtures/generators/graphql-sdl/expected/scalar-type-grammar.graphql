@@ -1,8 +1,5 @@
-# TODO: Update when graphql-sdl generator is fully implemented
-# Expected output for scalar-type-grammar.json
-#
-# Should generate:
-# scalar ScalarName
-
 scalar ScalarName
 
+type Query {
+  _: Boolean
+}

@@ -21,7 +21,8 @@ import { loadGeneratorFixtures } from "../helpers/fixtures";
 import { expectValidGraphQL } from "../helpers/schema-validator";
 import { GraphQLGrammar, type Grammar } from "../../src/grammar";
 import { createTestID, registerTestID } from "../helpers/test-ids";
-import { initTestReport, updateTestReport, reportTestPassed, reportTestFailed } from "../helpers/report-test";
+import { initTestReport, reportTestPassed, reportTestFailed } from "../helpers/report-test";
+import type { SchemaCheckResult } from "../helpers/schema-validator";
 
 describe("graphql-sdl generator", () => {
   const fixtures = loadGeneratorFixtures("graphql-sdl");
@@ -101,6 +102,15 @@ describe("graphql-sdl generator", () => {
     it(`[${TEST_ID}] generates scalar type definition`, async () => {
       const input = fixtures.input("scalar-type-grammar.json") as Grammar;
       const expected = fixtures.expected("scalar-type-grammar.graphql");
+      
+      // Initialize test report context
+      initTestReport({
+        testId: TEST_ID,
+        description: "generates scalar type definition",
+        input,
+        expectedOutput: expected,
+      });
+      
       const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
@@ -110,12 +120,46 @@ describe("graphql-sdl generator", () => {
       expect(output.length).toBeGreaterThan(0);
 
       // REQUIRED: Validate generated GraphQL and compare with expected fixture
-      // Note: Currently placeholder - uncomment when generator is implemented
-      // await expectValidGraphQL(output, undefined, {
-      //   failOnWarnings: false,
-      //   expectedFixture: expected,
-      //   compareMode: "semantic",
-      // });
+      // Validation errors will cause the test to fail and be reported
+      let validationResult: SchemaCheckResult | undefined;
+      try {
+        validationResult = await expectValidGraphQL(output, undefined, {
+          failOnWarnings: false,
+          expectedFixture: expected,
+          compareMode: "semantic",
+          saveOutput:
+            process.env.SAVE_TEST_OUTPUTS === "true"
+              ? "scalar-type-grammar.graphql"
+              : false,
+          pluginType: "generators",
+          pluginName: "graphql-sdl",
+          testId: TEST_ID,
+        });
+        
+        // Report test passed
+        reportTestPassed({
+          testId: TEST_ID,
+          description: "generates scalar type definition",
+          input,
+          expectedOutput: expected,
+          actualOutput: output,
+          validationResult,
+        });
+      } catch (error) {
+        // Report test failed
+        reportTestFailed(
+          {
+            testId: TEST_ID,
+            description: "generates scalar type definition",
+            input,
+            expectedOutput: expected,
+            actualOutput: output,
+            validationResult,
+          },
+          error instanceof Error ? error : new Error(String(error))
+        );
+        throw error;
+      }
     });
   });
 

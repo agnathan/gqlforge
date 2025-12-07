@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * List all registered test IDs
+ * List all registered test IDs with their pass/fail status
  * 
  * Usage: tsx scripts/list-test-ids.ts
  * 
@@ -8,16 +8,75 @@
  * to avoid Vitest initialization issues.
  */
 
-import { readFileSync, readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join, extname } from "path";
 
 interface TestIDInfo {
   id: string;
   file: string;
   description: string;
+  status?: "PASSED" | "FAILED" | "UNKNOWN";
 }
 
+const TEST_REPORTS_ROOT = join(process.cwd(), "test-reports");
 const testIDs: TestIDInfo[] = [];
+
+/**
+ * Find the most recent test report for a given test ID
+ */
+function findLatestTestReport(testId: string): "PASSED" | "FAILED" | "UNKNOWN" {
+  if (!existsSync(TEST_REPORTS_ROOT)) {
+    return "UNKNOWN";
+  }
+  
+  const reports: Array<{ status: "PASSED" | "FAILED"; timestamp: string }> = [];
+  
+  // Scan all datetime directories
+  const datetimeDirs = readdirSync(TEST_REPORTS_ROOT)
+    .filter(name => {
+      const fullPath = join(TEST_REPORTS_ROOT, name);
+      return statSync(fullPath).isDirectory();
+    })
+    .sort()
+    .reverse(); // Most recent first
+  
+  for (const datetimeDir of datetimeDirs) {
+    const datetimePath = join(TEST_REPORTS_ROOT, datetimeDir);
+    const testFileDirs = readdirSync(datetimePath)
+      .filter(name => {
+        const fullPath = join(datetimePath, name);
+        return statSync(fullPath).isDirectory();
+      });
+    
+    for (const testFileDir of testFileDirs) {
+      const testFilePath = join(datetimePath, testFileDir);
+      const files = readdirSync(testFilePath)
+        .filter(name => name.startsWith(`${testId}-`) && name.endsWith(".json"));
+      
+      for (const file of files) {
+        const filePath = join(testFilePath, file);
+        const status = file.includes("PASSED") ? "PASSED" : "FAILED";
+        try {
+          const report = JSON.parse(readFileSync(filePath, "utf-8")) as { timestamp: string };
+          reports.push({
+            status,
+            timestamp: report.timestamp,
+          });
+        } catch {
+          // Skip invalid JSON files
+        }
+      }
+    }
+  }
+  
+  if (reports.length === 0) {
+    return "UNKNOWN";
+  }
+  
+  // Sort by timestamp descending and return the most recent status
+  reports.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return reports[0].status;
+}
 
 /**
  * Extract test IDs from a test file
@@ -68,10 +127,12 @@ function extractTestIDs(filePath: string, content: string): void {
         .toUpperCase()
         .slice(0, 8);
       const id = `${testID.type}-${pluginShort}-${testID.number.toString().padStart(3, "0")}`;
+      const status = findLatestTestReport(id);
       testIDs.push({
         id,
         file: filePath,
         description: itMatch.description.trim(),
+        status,
       });
     }
   }
@@ -104,8 +165,8 @@ function scanTestFiles(dir: string): void {
 const testsDir = join(process.cwd(), "tests");
 scanTestFiles(testsDir);
 
-console.log("Test IDs Found\n");
-console.log("=" .repeat(80));
+console.log("\nTest IDs Found\n");
+console.log("=".repeat(80));
 
 if (testIDs.length === 0) {
   console.log("No test IDs found. Make sure test files use createTestID() and registerTestID().");
@@ -133,17 +194,28 @@ for (const [type, tests] of byType.entries()) {
   }[type] || type;
 
   console.log(`\n${typeName} (${type}):`);
-  console.log("-" .repeat(80));
+  console.log("-".repeat(80));
 
   // Sort by ID
   tests.sort((a, b) => a.id.localeCompare(b.id));
 
   for (const testInfo of tests) {
-    console.log(`  ${testInfo.id.padEnd(15)} ${testInfo.description}`);
-    console.log(`  ${" ".repeat(15)} ${testInfo.file}`);
+    const statusSymbol = testInfo.status === "PASSED" ? "✓" : testInfo.status === "FAILED" ? "✗" : "?";
+    console.log(`  ${statusSymbol} ${testInfo.id.padEnd(15)} ${testInfo.description}`);
+    console.log(`    ${" ".repeat(15)} ${testInfo.file}`);
   }
 }
 
-console.log("\n" + "=" .repeat(80));
+console.log("\n" + "=".repeat(80));
 console.log(`Total: ${testIDs.length} test IDs`);
+
+// Summary
+const passedCount = testIDs.filter(t => t.status === "PASSED").length;
+const failedCount = testIDs.filter(t => t.status === "FAILED").length;
+const unknownCount = testIDs.filter(t => t.status === "UNKNOWN" || !t.status).length;
+
+console.log(`\nSummary:`);
+console.log(`  ✓ Passed: ${passedCount}`);
+console.log(`  ✗ Failed: ${failedCount}`);
+console.log(`  ? Unknown: ${unknownCount} (no reports found)`);
 

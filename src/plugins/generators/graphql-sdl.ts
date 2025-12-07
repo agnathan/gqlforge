@@ -79,6 +79,7 @@ export const graphqlSDLGenerator: Generator<string> = {
     const indent = opts.format ? " ".repeat(opts.indentSize ?? 2) : "";
     const lines: string[] = [];
     const referencedTypes = new Set<string>();
+    const generatedTypeDefinitions = new Set<string>();
 
     // Special handling for SchemaDefinition - parse it specifically
     if (grammar.rules.SchemaDefinition) {
@@ -99,7 +100,15 @@ export const graphqlSDLGenerator: Generator<string> = {
       // Start from root rule and generate recursively
       const rootRule = grammar.rules[grammar.root];
       if (rootRule) {
-        const generated = generateFromRule(grammar, rootRule, indent, opts, 0);
+        const generated = generateFromRule(
+          grammar,
+          rootRule,
+          indent,
+          opts,
+          0,
+          generatedTypeDefinitions,
+          undefined
+        );
         if (generated) {
           lines.push(generated);
         }
@@ -120,7 +129,36 @@ export const graphqlSDLGenerator: Generator<string> = {
       }
     }
 
-    // Generate type definitions from grammar
+    // GraphQL requires at least a Query type. If we have type definitions but no Query,
+    // add a minimal Query type to make the schema valid
+    const hasQueryType = 
+      lines.some(line => line.trim().startsWith("type Query")) ||
+      grammar.rules["ObjectTypeDefinition"] && 
+      generatedTypeDefinitions.has("ObjectTypeDefinition");
+    
+    if (!hasQueryType && lines.length > 0) {
+      // Check if we have any type definitions (not just schema definition)
+      const hasTypeDefinitions = lines.some(line => 
+        line.trim().startsWith("type ") || 
+        line.trim().startsWith("scalar ") ||
+        line.trim().startsWith("interface ") ||
+        line.trim().startsWith("union ") ||
+        line.trim().startsWith("enum ") ||
+        line.trim().startsWith("input ")
+      );
+      
+      if (hasTypeDefinitions) {
+        const queryType = opts.format
+          ? `type Query {\n${indent}_: Boolean\n}`
+          : `type Query { _: Boolean }`;
+        lines.push(queryType);
+        if (opts.format) {
+          lines.push("");
+        }
+      }
+    }
+
+    // Generate type definitions from grammar (only if not already generated from Document)
     const typeDefinitions = [
       "ScalarTypeDefinition",
       "ObjectTypeDefinition",
@@ -131,9 +169,21 @@ export const graphqlSDLGenerator: Generator<string> = {
     ];
 
     for (const typeDef of typeDefinitions) {
+      // Skip if already generated from Document
+      if (generatedTypeDefinitions.has(typeDef)) {
+        continue;
+      }
       const rule = grammar.rules[typeDef];
       if (rule) {
-        const sdl = generateFromRule(grammar, rule, indent, opts, 0);
+        const sdl = generateFromRule(
+          grammar,
+          rule,
+          indent,
+          opts,
+          0,
+          generatedTypeDefinitions,
+          undefined
+        );
         if (sdl) {
           lines.push(sdl);
           if (opts.format) {
@@ -155,9 +205,28 @@ function generateFromRule(
   rule: ProductionRule,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  generatedTypeDefinitions?: Set<string>,
+  contextRuleName?: string
 ): string {
-  return generateFromElement(grammar, rule.definition, indent, options, depth);
+  // Track type definitions as they're generated
+  if (generatedTypeDefinitions && rule.name.endsWith("TypeDefinition")) {
+    generatedTypeDefinitions.add(rule.name);
+  }
+  // Use rule name as context if it's a type definition, otherwise preserve passed context
+  // This ensures that when generating Name inside ScalarTypeDefinition, we keep ScalarTypeDefinition as context
+  const effectiveContext = rule.name.endsWith("TypeDefinition") 
+    ? rule.name 
+    : contextRuleName;
+  return generateFromElement(
+    grammar,
+    rule.definition,
+    indent,
+    options,
+    depth,
+    effectiveContext,
+    generatedTypeDefinitions
+  );
 }
 
 /**
@@ -168,14 +237,24 @@ function generateFromElement(
   element: GrammarElement,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  contextRuleName?: string,
+  generatedTypeDefinitions?: Set<string>
 ): string {
   switch (element.kind) {
     case "Terminal":
-      return generateTerminal(element, grammar);
+      return generateTerminal(element, grammar, contextRuleName);
 
     case "NonTerminal":
-      return generateNonTerminal(grammar, element.name, indent, options, depth);
+      return generateNonTerminal(
+        grammar,
+        element.name,
+        indent,
+        options,
+        depth,
+        contextRuleName,
+        generatedTypeDefinitions
+      );
 
     case "Sequence":
       return generateSequence(
@@ -183,11 +262,21 @@ function generateFromElement(
         element,
         indent,
         options,
-        depth
+        depth,
+        contextRuleName,
+        generatedTypeDefinitions
       );
 
     case "OneOf":
-      return generateOneOf(grammar, element, indent, options, depth);
+      return generateOneOf(
+        grammar,
+        element,
+        indent,
+        options,
+        depth,
+        contextRuleName,
+        generatedTypeDefinitions
+      );
 
     case "Optional":
       // For Optional, we generate it if it's commonly present
@@ -197,11 +286,21 @@ function generateFromElement(
         element.element,
         indent,
         options,
-        depth
+        depth,
+        contextRuleName,
+        generatedTypeDefinitions
       );
 
     case "List":
-      return generateList(grammar, element, indent, options, depth);
+      return generateList(
+        grammar,
+        element,
+        indent,
+        options,
+        depth,
+        contextRuleName,
+        generatedTypeDefinitions
+      );
 
     default:
       return "";
@@ -211,7 +310,11 @@ function generateFromElement(
 /**
  * Generate from a Terminal
  */
-function generateTerminal(terminal: Terminal, _grammar: Grammar): string {
+function generateTerminal(
+  terminal: Terminal,
+  _grammar: Grammar,
+  contextRuleName?: string
+): string {
   // If terminal has a name that's a keyword, use it directly
   // Check if it's a known GraphQL keyword
   const keyword = terminal.name.toLowerCase();
@@ -242,6 +345,30 @@ function generateTerminal(terminal: Terminal, _grammar: Grammar): string {
     return terminal.name;
   }
 
+  // For Name terminal, generate context-aware placeholder names
+  if (terminal.name === "Name") {
+    if (contextRuleName === "ScalarTypeDefinition") {
+      return "ScalarName";
+    }
+    if (contextRuleName === "ObjectTypeDefinition") {
+      return "ObjectName";
+    }
+    if (contextRuleName === "InterfaceTypeDefinition") {
+      return "InterfaceName";
+    }
+    if (contextRuleName === "UnionTypeDefinition") {
+      return "UnionName";
+    }
+    if (contextRuleName === "EnumTypeDefinition") {
+      return "EnumName";
+    }
+    if (contextRuleName === "InputObjectTypeDefinition") {
+      return "InputObjectName";
+    }
+    // Default placeholder for Name
+    return "TypeName";
+  }
+
   // For other terminals, try to extract from pattern or use name
   // This is a placeholder - in a full implementation, we'd need to handle
   // actual token values from parsing
@@ -256,7 +383,9 @@ function generateNonTerminal(
   ruleName: string,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  contextRuleName?: string,
+  generatedTypeDefinitions?: Set<string>
 ): string {
   const rule = grammar.rules[ruleName];
   if (!rule) {
@@ -264,7 +393,16 @@ function generateNonTerminal(
     return "";
   }
 
-  return generateFromRule(grammar, rule, indent, options, depth);
+  return generateFromRule(
+    grammar,
+    rule,
+    indent,
+    options,
+    depth,
+    generatedTypeDefinitions,
+    // Use the resolved rule name as the new context (for type definitions)
+    rule.name.endsWith("TypeDefinition") ? rule.name : contextRuleName
+  );
 }
 
 /**
@@ -275,7 +413,9 @@ function generateSequence(
   sequence: Sequence,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  contextRuleName?: string,
+  generatedTypeDefinitions?: Set<string>
 ): string {
   const parts: string[] = [];
 
@@ -285,7 +425,9 @@ function generateSequence(
       element,
       indent,
       options,
-      depth
+      depth,
+      contextRuleName,
+      generatedTypeDefinitions
     );
 
     if (generated) {
@@ -308,7 +450,9 @@ function generateOneOf(
   oneOf: OneOf,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  contextRuleName?: string,
+  generatedTypeDefinitions?: Set<string>
 ): string {
   // For OneOf, we need to select one option
   // For OperationType specifically, we might want to generate all options
@@ -319,7 +463,9 @@ function generateOneOf(
       oneOf.options[0],
       indent,
       options,
-      depth
+      depth,
+      contextRuleName,
+      generatedTypeDefinitions
     );
   }
   return "";
@@ -334,7 +480,9 @@ function generateList(
   list: List,
   indent: string,
   options: GraphQLSDLOptions,
-  depth: number
+  depth: number,
+  contextRuleName?: string,
+  generatedTypeDefinitions?: Set<string>
 ): string {
   const nextIndent = depth + 1;
   const items: string[] = [];
@@ -368,7 +516,9 @@ function generateList(
     list.element,
     indent,
     options,
-    depth
+    depth,
+    contextRuleName,
+    generatedTypeDefinitions
   );
 
   if (item) {
