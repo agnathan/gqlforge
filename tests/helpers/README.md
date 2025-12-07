@@ -1,183 +1,238 @@
-# GraphQL Schema Validation Helper
+# Test Helpers
 
-A production-ready helper function for validating and linting GraphQL schemas in your test suite.
+Helper utilities for testing GraphQL generators, transformers, and parsers.
 
-## Overview
+## Schema Validator (`schema-validator.ts`)
 
-This helper combines two complementary tools:
+Provides validation and linting helpers for GraphQL schemas.
 
-1. **`graphql-js`** - Strict specification validation (catches "won't work" errors)
-2. **`@graphql-eslint/eslint-plugin`** - Best-practice linting (catches "messy/bad practice" errors)
+### `expectValidGraphQL()`
 
-## Features
-
-- ✅ **Specification Validation**: Ensures schemas adhere to the GraphQL spec
-- ✅ **Linting**: Enforces best practices and coding standards
-- ✅ **Vitest Integration**: Works seamlessly with Vitest test framework
-- ✅ **Detailed Error Reporting**: Returns structured issues with line/column information
-- ✅ **Flexible Configuration**: Customizable ESLint rules and options
-- ✅ **Graceful Degradation**: Works even if graphql-eslint isn't installed
-
-## Usage
-
-### Basic Example
+The primary helper for tests that generate GraphQL. Validates, lints, and optionally compares against expected fixtures.
 
 ```typescript
-import { checkGraphQLSchema } from "./helpers/schema-validator";
+import { expectValidGraphQL } from "../helpers/schema-validator";
 
-const schema = `
-  type User {
-    id: ID!
-    name: String!
-  }
-  
-  type Query {
-    me: User
-  }
-`;
-
-const result = await checkGraphQLSchema(schema);
-
-if (!result.isValid) {
-  console.error("Schema validation failed:", result.issues);
-}
+await expectValidGraphQL(generatedSDL, undefined, {
+  failOnWarnings: false,
+  expectedFixture: expected,
+  compareMode: "semantic",
+  saveOutput: true, // Save generated output for review
+  pluginType: "generators",
+  pluginName: "graphql-sdl",
+});
 ```
 
-### In Vitest Tests
+### Saving Generated Outputs for Review
+
+To save generated GraphQL outputs for manual review and comparison:
+
+**Option 1: Environment Variable (Recommended)**
+```bash
+# Save outputs for all tests
+SAVE_TEST_OUTPUTS=true npm test
+
+# Save outputs for specific test
+SAVE_TEST_OUTPUTS=true npm test -- tests/generators/graphql-sdl.test.ts
+```
+
+**Option 2: Per-Test Option**
+```typescript
+await expectValidGraphQL(output, undefined, {
+  saveOutput: true, // or a custom filename string
+  pluginType: "generators",
+  pluginName: "graphql-sdl",
+  // ... other options
+});
+```
+
+Generated outputs are saved to:
+```
+tests/fixtures/{pluginType}/{pluginName}/generated/{outputName}
+```
+
+For example:
+- `tests/fixtures/generators/graphql-sdl/generated/schema-definition-grammar.graphql`
+- `tests/fixtures/generators/graphql-sdl/generated/scalar-type-grammar.graphql`
+
+You can then compare these files with the expected fixtures in:
+```
+tests/fixtures/{pluginType}/{pluginName}/expected/{outputName}
+```
+
+**Note:** The `generated/` directory is gitignored, so generated outputs won't be committed to the repository.
+
+## Test IDs (`test-ids.ts`)
+
+Provides unique identifiers for tests to enable easy reference in documentation and when communicating with AI agents.
+
+### Test ID Format
+
+**Format**: `{TYPE}-{PLUGIN}-{NUMBER}`
+- **TYPE**: `GEN` (generator), `TRANS` (transformer), `PARSE` (parser), `VALID` (validation)
+- **PLUGIN**: Short plugin identifier (e.g., `GSDL` for graphql-sdl, `AF` for add-field)
+- **NUMBER**: Sequential test number within the plugin (001, 002, etc.)
+
+### Creating Test IDs
 
 ```typescript
-import { describe, it, expect } from "vitest";
-import { checkGraphQLSchema, formatSchemaIssues } from "./helpers/schema-validator";
+import { createTestID, registerTestID } from "../helpers/test-ids";
 
-describe("My GraphQL Schema", () => {
-  it("should be valid", async () => {
-    const schema = `...`;
-    const result = await checkGraphQLSchema(schema);
-    
-    expect(result.isValid).toBe(true);
-    
-    // Check for errors specifically (warnings don't fail validation)
-    const errors = result.issues.filter(i => i.severity === "error");
-    expect(errors).toHaveLength(0);
-  });
-  
-  it("should have detailed error messages", async () => {
-    const schema = `...`;
-    const result = await checkGraphQLSchema(schema);
-    
-    if (!result.isValid) {
-      console.error(formatSchemaIssues(result.issues));
-    }
-    
-    expect(result.isValid).toBe(true);
+describe("my plugin", () => {
+  const TEST_ID = createTestID("GEN", "graphql-sdl", 1);
+  registerTestID(TEST_ID, "tests/generators/graphql-sdl.test.ts", "test description");
+
+  it(`[${TEST_ID}] test description`, () => {
+    // test code
   });
 });
 ```
 
-### Using the Assertion Helper
+### Listing All Test IDs
 
-```typescript
-import { checkGraphQLSchema, assertValidSchema } from "./helpers/schema-validator";
-
-const result = await checkGraphQLSchema(schema);
-
-// Throws with formatted error message if invalid
-assertValidSchema(result);
-
-// Or fail on warnings too
-assertValidSchema(result, { failOnWarnings: true });
+```bash
+npm run test:ids
 ```
 
-### Custom Linting Rules
+### Finding Tests by ID
+
+```bash
+# Run specific test by ID
+npm test -- -t GEN-GSDL-001
+
+# Run all tests for a plugin
+npm test -- -t GEN-GSDL
+```
+
+## Fixtures (`fixtures.ts`)
+
+Provides utilities for loading and saving test fixtures.
+
+### Loading Fixtures
 
 ```typescript
-const result = await checkGraphQLSchema(schema, {
-  eslintConfig: {
-    rules: {
-      "@graphql-eslint/require-description": ["error"],
-      "@graphql-eslint/naming-convention": ["error", {
-        FieldDefinition: "camelCase",
-        ObjectTypeDefinition: "PascalCase",
-      }],
-    },
-  },
+import { loadGeneratorFixtures } from "../helpers/fixtures";
+
+const fixtures = loadGeneratorFixtures("graphql-sdl");
+const input = fixtures.input("schema-definition-grammar.json");
+const expected = fixtures.expected("schema-definition-grammar.graphql");
+```
+
+### Saving Generated Outputs
+
+```typescript
+import { saveGeneratedOutput } from "../helpers/fixtures";
+
+saveGeneratedOutput(
+  "generators",
+  "graphql-sdl",
+  "schema-definition-grammar.graphql",
+  generatedSDL
+);
+```
+
+## Test Reporter (`test-reporter.ts`)
+
+Provides detailed test reporting to `test-reports/{datetime}/{test-file}/{test-id}-{status}.json`.
+
+### Test Report Structure
+
+Each test report includes:
+- **testId**: Unique test identifier (e.g., `GEN-GSDL-001`)
+- **description**: Test description
+- **status**: `PASSED` or `FAILED`
+- **timestamp**: ISO timestamp
+- **testFile**: Path to test file
+- **input**: Test input data
+- **expectedOutput**: Expected output
+- **actualOutput**: Actual output
+- **errors**: Array of error messages (if failed)
+- **validationErrors**: Array of validation/linting errors
+- **validationWarnings**: Array of validation/linting warnings
+- **validationResult**: Simplified validation result
+
+### Using Test Reporter
+
+```typescript
+import { setTestContext, writeTestReportForTest } from "../helpers/test-wrapper";
+import { expectValidGraphQL } from "../helpers/schema-validator";
+
+it(`[${TEST_ID}] test description`, async () => {
+  const input = fixtures.input("input.json");
+  const expected = fixtures.expected("expected.graphql");
+  
+  // Set test context
+  setTestContext({
+    testId: TEST_ID,
+    description: "test description",
+    input,
+    expectedOutput: expected,
+  });
+  
+  const output = generator.generate(input);
+  setTestContext({ actualOutput: output });
+  
+  try {
+    const validationResult = await expectValidGraphQL(output, undefined, {
+      expectedFixture: expected,
+      testId: TEST_ID,
+    });
+    
+    setTestContext({ validationResult });
+    
+    // Write report for passed test
+    writeTestReportForTest(TEST_ID, "test description", "PASSED", {
+      input,
+      expectedOutput: expected,
+      actualOutput: output,
+      validationResult,
+    });
+  } catch (error) {
+    // Write report for failed test
+    writeTestReportForTest(TEST_ID, "test description", "FAILED", {
+      input,
+      expectedOutput: expected,
+      actualOutput: output,
+      error: error instanceof Error ? error : new Error(String(error)),
+    });
+    throw error;
+  }
 });
 ```
 
-## API Reference
+### Report Directory Structure
 
-### `checkGraphQLSchema(schemaSDL, options?)`
-
-Validates and lints a GraphQL Schema Definition Language string.
-
-**Parameters:**
-- `schemaSDL` (string): GraphQL Schema Definition Language string
-- `options` (SchemaCheckOptions, optional): Configuration options
-
-**Returns:** `Promise<SchemaCheckResult>`
-
-**Options:**
-- `skipLintOnValidationError` (boolean, default: `true`): Skip linting if validation fails
-- `eslintConfig` (Linter.Config, optional): Custom ESLint configuration
-- `filePath` (string, default: `"schema.graphql"`): File path for ESLint
-
-**Result:**
-- `isValid` (boolean): Whether the schema is valid (no errors)
-- `issues` (SchemaIssue[]): Array of validation and linting issues
-- `schema` (GraphQLSchema, optional): The parsed GraphQL schema if valid
-
-### `formatSchemaIssues(issues)`
-
-Formats issues for human-readable output.
-
-**Parameters:**
-- `issues` (SchemaIssue[]): Array of schema issues
-
-**Returns:** `string`
-
-### `assertValidSchema(result, options?)`
-
-TypeScript assertion helper that throws if schema is invalid.
-
-**Parameters:**
-- `result` (SchemaCheckResult): Result from `checkGraphQLSchema`
-- `options` (object, optional):
-  - `failOnWarnings` (boolean, default: `false`): Also fail on warnings
-
-**Throws:** Error with formatted issues if validation fails
-
-## Issue Types
-
-### SchemaIssue
-
-```typescript
-interface SchemaIssue {
-  message: string;           // Error or warning message
-  line?: number;             // Line number (1-indexed)
-  column?: number;           // Column number (1-indexed)
-  ruleId?: string;          // ESLint rule ID (for linting issues)
-  severity: "error" | "warning";
-  source: "validation" | "lint";
-}
+```
+test-reports/
+  {datetime}/                    # e.g., 2025-12-07T21-04-32
+    {test-file}/                # e.g., graphql-sdl
+      {test-id}-PASSED.json     # e.g., GEN-GSDL-001-PASSED.json
+      {test-id}-FAILED.json     # e.g., GEN-GSDL-002-FAILED.json
 ```
 
-## Best Practices
+**Note:** The `test-reports/` directory is gitignored, so reports won't be committed to the repository.
 
-1. **Always check `isValid` first** - This tells you if the schema is technically valid
-2. **Filter by severity** - Use `severity === "error"` to check for critical issues
-3. **Use `formatSchemaIssues`** - Provides readable output for test failures
-4. **Customize linting rules** - Adjust rules to match your team's standards
-5. **Skip linting on validation errors** - Prevents noise when schema is fundamentally broken
+### Viewing Test Reports
 
-## Dependencies
+Use the `test:report` script to view a pretty-printed test report:
 
-- `graphql` - GraphQL reference implementation
-- `@graphql-eslint/eslint-plugin` - GraphQL ESLint plugin (optional, gracefully degrades)
-- `eslint` - ESLint core (required for linting)
+```bash
+npm run test:report <TEST_ID>
+```
 
-## See Also
+**Example:**
+```bash
+npm run test:report GEN-GSDL-001
+```
 
-- [GraphQL Specification](https://spec.graphql.org/)
-- [graphql-eslint Documentation](https://the-guild.dev/graphql/eslint)
-- [Vitest Documentation](https://vitest.dev/)
-
+The script will:
+- Find the most recent report for the test ID
+- Pretty print all report sections:
+  - Test ID, description, status, timestamp
+  - Input data
+  - Expected output
+  - Actual output
+  - Errors (if failed)
+  - Validation errors and warnings
+  - Validation summary
+- Show other reports if multiple exist for the same test ID

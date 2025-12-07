@@ -575,7 +575,7 @@ function deepEqualAST(a: any, b: any): boolean {
 /**
  * Compare two GraphQL SDL strings semantically using AST comparison
  */
-function compareGraphQLSchemas(
+export function compareGraphQLSchemas(
   actual: string,
   expected: string,
   mode: "exact" | "normalized" | "semantic" = "semantic"
@@ -653,6 +653,21 @@ export async function expectValidGraphQL(
     failOnUnexpectedWarnings?: boolean;
     expectedFixture?: string;
     compareMode?: "exact" | "normalized" | "semantic";
+    /**
+     * Save generated output to file for review
+     * If true, saves to tests/fixtures/{pluginType}/{pluginName}/generated/{outputName}
+     * If string, uses that as the output name
+     */
+    saveOutput?: boolean | string;
+    /**
+     * Plugin type and name for saving outputs (required if saveOutput is true)
+     */
+    pluginType?: "parsers" | "transformers" | "generators";
+    pluginName?: string;
+    /**
+     * Test ID for reporting (optional)
+     */
+    testId?: string;
   }
 ): Promise<SchemaCheckResult> {
   const {
@@ -662,7 +677,36 @@ export async function expectValidGraphQL(
     failOnUnexpectedWarnings = false,
     expectedFixture,
     compareMode = "semantic",
+    saveOutput,
+    pluginType,
+    pluginName,
   } = options || {};
+
+  // Save generated output if requested (or if SAVE_TEST_OUTPUTS env var is set)
+  const shouldSaveOutput =
+    saveOutput !== false &&
+    (saveOutput === true ||
+      typeof saveOutput === "string" ||
+      process.env.SAVE_TEST_OUTPUTS === "true");
+
+  if (shouldSaveOutput && pluginType && pluginName) {
+    // Determine output filename
+    let outputName: string;
+    if (typeof saveOutput === "string") {
+      // Use custom filename if provided
+      outputName = saveOutput;
+    } else if (expectedFixture) {
+      // Extract filename from expected fixture path
+      // expectedFixture is the content, not the path - we need to infer from context
+      // For now, use a default name - tests can override with saveOutput: "custom-name.graphql"
+      outputName = "output.graphql";
+    } else {
+      outputName = "output.graphql";
+    }
+
+    const { saveGeneratedOutput } = await import("./fixtures");
+    saveGeneratedOutput(pluginType, pluginName, outputName, schemaSDL);
+  }
 
   const { result, matches, differences } = await validateAndLintGraphQL(
     schemaSDL,

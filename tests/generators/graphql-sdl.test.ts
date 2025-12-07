@@ -20,14 +20,28 @@ import { graphqlSDLGenerator } from "../../src/plugins/generators/graphql-sdl";
 import { loadGeneratorFixtures } from "../helpers/fixtures";
 import { expectValidGraphQL } from "../helpers/schema-validator";
 import { GraphQLGrammar, type Grammar } from "../../src/grammar";
+import { createTestID, registerTestID } from "../helpers/test-ids";
+import { initTestReport, updateTestReport, reportTestPassed, reportTestFailed } from "../helpers/report-test";
 
 describe("graphql-sdl generator", () => {
   const fixtures = loadGeneratorFixtures("graphql-sdl");
 
   describe("3.3 Schema Definition", () => {
-    it("generates schema definition with root operation types", async () => {
+    const TEST_ID = createTestID("GEN", "graphql-sdl", 1);
+    registerTestID(TEST_ID, "tests/generators/graphql-sdl.test.ts", "generates schema definition with root operation types");
+
+    it(`[${TEST_ID}] generates schema definition with root operation types`, async () => {
       const input = fixtures.input("schema-definition-grammar.json") as Grammar;
       const expected = fixtures.expected("schema-definition-grammar.graphql");
+      
+      // Initialize test report context
+      initTestReport({
+        testId: TEST_ID,
+        description: "generates schema definition with root operation types",
+        input,
+        expectedOutput: expected,
+      });
+      
       const output = graphqlSDLGenerator.generate(input, {
         format: true,
         includeDescriptions: true,
@@ -37,17 +51,54 @@ describe("graphql-sdl generator", () => {
       expect(output.length).toBeGreaterThan(0);
 
       // REQUIRED: Validate generated GraphQL and compare with expected fixture
-      // Note: Currently placeholder - uncomment when generator is implemented
-      // await expectValidGraphQL(output, undefined, {
-      //   failOnWarnings: false,
-      //   expectedFixture: expected,
-      //   compareMode: "semantic",
-      // });
+      // Validation errors will cause the test to fail and be reported
+      let validationResult: SchemaCheckResult | undefined;
+      try {
+        validationResult = await expectValidGraphQL(output, undefined, {
+          failOnWarnings: false,
+          expectedFixture: expected,
+          compareMode: "semantic",
+          saveOutput:
+            process.env.SAVE_TEST_OUTPUTS === "true"
+              ? "schema-definition-grammar.graphql"
+              : false,
+          pluginType: "generators",
+          pluginName: "graphql-sdl",
+          testId: TEST_ID,
+        });
+        
+        // Report test passed
+        reportTestPassed({
+          testId: TEST_ID,
+          description: "generates schema definition with root operation types",
+          input,
+          expectedOutput: expected,
+          actualOutput: output,
+          validationResult,
+        });
+      } catch (error) {
+        // Report test failed
+        reportTestFailed(
+          {
+            testId: TEST_ID,
+            description: "generates schema definition with root operation types",
+            input,
+            expectedOutput: expected,
+            actualOutput: output,
+            validationResult,
+          },
+          error instanceof Error ? error : new Error(String(error))
+        );
+        throw error;
+      }
     });
   });
 
   describe("3.5 Scalar Type Definition", () => {
-    it("generates scalar type definition", async () => {
+    const TEST_ID = createTestID("GEN", "graphql-sdl", 2);
+    registerTestID(TEST_ID, "tests/generators/graphql-sdl.test.ts", "generates scalar type definition");
+
+    it(`[${TEST_ID}] generates scalar type definition`, async () => {
       const input = fixtures.input("scalar-type-grammar.json") as Grammar;
       const expected = fixtures.expected("scalar-type-grammar.graphql");
       const output = graphqlSDLGenerator.generate(input, {
@@ -69,7 +120,10 @@ describe("graphql-sdl generator", () => {
   });
 
   describe("3.6 Object Type Definition", () => {
-    it("generates object type definition with fields", async () => {
+    const TEST_ID = createTestID("GEN", "graphql-sdl", 3);
+    registerTestID(TEST_ID, "tests/generators/graphql-sdl.test.ts", "generates object type definition with fields");
+
+    it(`[${TEST_ID}] generates object type definition with fields`, async () => {
       const input = fixtures.input("object-type-with-fields-grammar.json") as Grammar;
       const expected = fixtures.expected("object-type-with-fields-grammar.graphql");
       const output = graphqlSDLGenerator.generate(input, {
@@ -91,7 +145,10 @@ describe("graphql-sdl generator", () => {
   });
 
   describe("3.7 Interface Type Definition", () => {
-    it("generates interface type definition", async () => {
+    const TEST_ID = createTestID("GEN", "graphql-sdl", 4);
+    registerTestID(TEST_ID, "tests/generators/graphql-sdl.test.ts", "generates interface type definition");
+
+    it(`[${TEST_ID}] generates interface type definition`, async () => {
       const input = fixtures.input("interface-type-grammar.json") as Grammar;
       const expected = fixtures.expected("interface-type-grammar.graphql");
       const output = graphqlSDLGenerator.generate(input, {
@@ -113,7 +170,10 @@ describe("graphql-sdl generator", () => {
   });
 
   describe("configuration options", () => {
-    it("respects format option", () => {
+    const TEST_ID_FORMAT = createTestID("GEN", "graphql-sdl", 5);
+    registerTestID(TEST_ID_FORMAT, "tests/generators/graphql-sdl.test.ts", "respects format option");
+
+    it(`[${TEST_ID_FORMAT}] respects format option`, () => {
       const formatted = graphqlSDLGenerator.generate(GraphQLGrammar, {
         format: true,
       });
@@ -126,7 +186,10 @@ describe("graphql-sdl generator", () => {
       // Note: Placeholder generator may not show difference
     });
 
-    it("respects includeDescriptions option", () => {
+    const TEST_ID_DESCRIPTIONS = createTestID("GEN", "graphql-sdl", 6);
+    registerTestID(TEST_ID_DESCRIPTIONS, "tests/generators/graphql-sdl.test.ts", "respects includeDescriptions option");
+
+    it(`[${TEST_ID_DESCRIPTIONS}] respects includeDescriptions option`, () => {
       const withDescriptions = graphqlSDLGenerator.generate(GraphQLGrammar, {
         includeDescriptions: true,
       });

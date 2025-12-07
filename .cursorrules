@@ -4,6 +4,21 @@
 
 This is a TypeScript library for working with GraphQL schemas using a context-free grammar (CFG) representation. The project uses a plugin architecture with parsers, transformers, and generators.
 
+## Reference Documentation
+
+**CRITICAL: Always use `src/grammar.ts` as the authoritative reference** when implementing GraphQL-related functionality. This file contains the complete GraphQL Grammar Specification (September 2025 Edition) and defines:
+
+- All grammar element types (Terminal, NonTerminal, Sequence, OneOf, Optional, List)
+- The complete GraphQL grammar structure following the specification
+- Helper functions for constructing grammar elements
+- The canonical `GraphQLGrammar` object
+
+When implementing parsers, generators, or transformers:
+1. **Always reference `src/grammar.ts`** to understand the grammar structure
+2. Follow the specification sections (3.3 Schema, 3.5 Scalars, 3.6 Objects, etc.)
+3. Use the helper functions (`T()`, `NT()`, `Seq()`, `Or()`, `Opt()`, `Lst()`) when constructing grammar elements
+4. Ensure implementations match the grammar structure defined in `src/grammar.ts`
+
 ## Testing Architecture
 
 ### Fixture-Based Testing
@@ -213,7 +228,122 @@ npm test                    # Run all tests
 npm test -- --run          # Run once (no watch)
 npm test -- {pattern}      # Run specific tests
 npm test -- --ui           # UI mode
+npm test -- -t {TEST_ID}   # Run test by ID (e.g., GEN-GSDL-001)
 ```
+
+### Test IDs
+
+Every test has a unique ID for easy reference in documentation and when communicating with AI agents.
+
+**Format**: `{TYPE}-{PLUGIN}-{NUMBER}`
+- **TYPE**: `GEN` (generator), `TRANS` (transformer), `PARSE` (parser), `VALID` (validation)
+- **PLUGIN**: Short plugin identifier (e.g., `GSDL` for graphql-sdl, `AF` for add-field)
+- **NUMBER**: Sequential test number within the plugin (001, 002, etc.)
+
+**Examples**:
+- `GEN-GSDL-001`: Generator graphql-sdl test #1 - "generates schema definition with root operation types"
+- `TRANS-AF-001`: Transformer add-field test #1 - "adds email field to User type"
+- `PARSE-GSDL-001`: Parser graphql-sdl test #1 - "parses simple schema"
+
+**Usage**:
+- Reference tests in documentation: "See test `GEN-GSDL-001` for schema definition generation"
+- Run specific test: `npm test -- -t GEN-GSDL-001`
+- Communicate with AI agents: "Fix the issue in test `GEN-GSDL-001`"
+
+Test IDs are registered in `tests/helpers/test-ids.ts` and appear in test names: `[GEN-GSDL-001] generates schema definition...`
+
+### Test Reporting
+
+All tests automatically generate detailed reports in `test-reports/{datetime}/{test-file}/{test-id}-{status}.json`.
+
+**Report Structure:**
+- `test-reports/` - Root directory (gitignored)
+- `{datetime}/` - Directory named with ISO datetime (e.g., `2025-12-07T21-04-32`)
+- `{test-file}/` - Directory named after test file (e.g., `graphql-sdl`)
+- `{test-id}-{status}.json` - Report file (e.g., `GEN-GSDL-001-PASSED.json`)
+
+**Report Contents:**
+- Test ID and description
+- Status (PASSED/FAILED)
+- Timestamp
+- Test file path
+- Input data
+- Expected output
+- Actual output
+- Errors (if failed)
+- Validation errors and warnings
+- Validation result summary
+
+**Usage:**
+```typescript
+import { initTestReport, reportTestPassed, reportTestFailed } from "../helpers/report-test";
+
+it(`[${TEST_ID}] test description`, async () => {
+  const input = fixtures.input("input.json");
+  const expected = fixtures.expected("expected.graphql");
+  
+  initTestReport({
+    testId: TEST_ID,
+    description: "test description",
+    input,
+    expectedOutput: expected,
+  });
+  
+  const output = generator.generate(input);
+  
+  try {
+    const validationResult = await expectValidGraphQL(output, undefined, {
+      expectedFixture: expected,
+      testId: TEST_ID,
+    });
+    
+    reportTestPassed({
+      testId: TEST_ID,
+      description: "test description",
+      input,
+      expectedOutput: expected,
+      actualOutput: output,
+      validationResult,
+    });
+  } catch (error) {
+    reportTestFailed(
+      {
+        testId: TEST_ID,
+        description: "test description",
+        input,
+        expectedOutput: expected,
+        actualOutput: output,
+      },
+      error instanceof Error ? error : new Error(String(error))
+    );
+    throw error;
+  }
+});
+```
+
+### Viewing Test Reports
+
+View pretty-printed test reports using the test:report script:
+
+```bash
+npm run test:report <TEST_ID>
+```
+
+**Example:**
+```bash
+npm run test:report GEN-GSDL-001
+```
+
+This will display:
+- Test status (PASSED/FAILED)
+- Test description and metadata
+- Input data
+- Expected output
+- Actual output
+- Validation errors and warnings
+- Validation summary
+
+If multiple reports exist for the same test ID, the most recent one is shown by default.
 
 ## Code Style
 

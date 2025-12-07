@@ -22,6 +22,8 @@
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
     "test:json": "vitest run --reporter=json --outputFile=test-results.json",
+    "test:ids": "tsx scripts/list-test-ids.ts",
+    "test:report": "tsx scripts/show-test-report.ts",
     "typecheck": "tsc --noEmit",
     "clean": "rimraf dist test-results.json",
     "prepublishOnly": "npm run clean && npm run build",
