@@ -73,7 +73,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name terminal with valid identifier pattern",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -83,7 +83,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name terminal with valid identifier pattern",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))
@@ -135,7 +135,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name in type definition context",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -145,7 +145,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name in type definition context",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))
@@ -197,7 +197,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name in field definition context",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -207,7 +207,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name in field definition context",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))
@@ -259,7 +259,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name in argument definition context",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -269,7 +269,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name in argument definition context",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))
@@ -321,7 +321,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name in directive context",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -331,7 +331,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name in directive context",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))
@@ -383,7 +383,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
             description: "Parse Name in enum value context",
             input: schemaSDL,
             expectedOutput: expectedGrammar,
-            actualOutput: JSON.stringify(parsedGrammar, null, 2),
+            actualOutput: generatedSDL.output as string,
             validationResult,
           });
         } catch (error) {
@@ -393,7 +393,7 @@ describe("graphql-sdl parser - C.1-C.3 Lexical Tokens", () => {
               description: "Parse Name in enum value context",
               input: schemaSDL,
               expectedOutput: expectedGrammar,
-              actualOutput: JSON.stringify(parsedGrammar, null, 2),
+              actualOutput: generatedSDL.output as string,
               validationResult,
             },
             error instanceof Error ? error : new Error(String(error))

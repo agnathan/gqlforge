@@ -282,6 +282,17 @@ Test IDs are registered in `tests/helpers/test-ids.ts` and appear in test names:
 
 ### Test Reporting
 
+**IMPORTANT: Test reports are for historical reference and debugging only. Do NOT use test reports to determine if tests are currently passing.**
+
+**To check test status, always run the actual test command:**
+- `npm run test:run` - Run all tests
+- `npm test -- --run {pattern}` - Run tests matching a pattern (e.g., `npm test -- --run graphql-sdl`)
+- `npm test -- -t {TEST_ID}` - Run a specific test by ID (e.g., `npm test -- -t GEN-GSDL-001`)
+
+Test reports may be outdated or from previous test runs. The only reliable way to determine current test status is to execute the tests.
+
+---
+
 All tests automatically generate detailed reports in `test-reports/{datetime}/{test-file}/{test-id}-{status}.json`.
 
 **Report Structure:**
@@ -556,7 +567,9 @@ The following activities are commonly performed when working with tests. Use the
 #### 6. **View Test Report**
 **Phrase**: `"view test report for {TEST_ID}"` or `"show test report {TEST_ID}"`
 
-**What it does**: Displays a test report in human-readable format.
+**What it does**: Displays a test report in human-readable format (for debugging/historical reference).
+
+**Note**: Test reports show historical test results. To check if tests are currently passing, use "Run Test" instead.
 
 **Activities**:
 - Runs `npm run test:report {TEST_ID}`
@@ -569,16 +582,22 @@ The following activities are commonly performed when working with tests. Use the
 ---
 
 #### 7. **Run Test**
-**Phrase**: `"run test {TEST_ID}"` or `"test {TEST_ID}"`
+**Phrase**: `"run test {TEST_ID}"` or `"test {TEST_ID}"` or `"run all tests"` or `"check test status"`
 
-**What it does**: Runs a specific test by ID.
+**What it does**: Runs tests to determine current test status. This is the authoritative way to check if tests are passing.
 
 **Activities**:
-- Executes `npm test -- -t {TEST_ID}`
+- Executes `npm run test:run` for all tests, or `npm test -- -t {TEST_ID}` for specific test
 - Shows test results and output
 - Can run multiple tests: `"run tests GEN-GSDL-001 GEN-GSDL-002"`
+- Can run test groups: `npm test -- --run graphql-sdl` (runs all graphql-sdl tests)
 
-**Example**: `"run test GEN-GSDL-001"` → Runs specific test
+**Important**: Always use this command to verify test status. Do not rely on test reports which may be outdated.
+
+**Example**: 
+- `"run test GEN-GSDL-001"` → Runs specific test
+- `"run all tests"` → Runs `npm run test:run`
+- `"check if parser tests are passing"` → Runs `npm test -- --run graphql-sdl.lexical-tokens`
 
 ---
 
@@ -619,10 +638,11 @@ The following activities are commonly performed when working with tests. Use the
 **What it does**: Fixes a failing test.
 
 **Activities**:
-- Reads test report to understand failure
+- First runs the test to confirm it's failing: `npm test -- -t {TEST_ID}`
+- May read test report for debugging context (but test status comes from running tests)
 - Identifies root cause (generator/parser issue, fixture mismatch, etc.)
 - Fixes implementation or updates fixtures as needed
-- Validates fix by running test
+- Validates fix by running test again: `npm test -- -t {TEST_ID}`
 - Updates test status if successful
 
 **Example**: `"fix test GEN-GSDL-003"` → Fixes failing test
@@ -658,8 +678,10 @@ The following activities are commonly performed when working with tests. Use the
    - If build fails, proceed to fix errors before continuing
 
 2. **Run the Tests**
-   - Execute `npm test -- --run` to run all tests once (non-watch mode)
+   - Execute `npm run test:run` (or `npm test -- --run`) to run all tests once (non-watch mode)
+   - **Do NOT check test reports** - always run the actual test command to determine current status
    - Capture test results and identify any failures
+   - Can limit to specific tests: `npm test -- --run {pattern}` or `npm test -- -t {TEST_ID}`
 
 3. **Fix Errors**
    - Analyze test failures and build errors
