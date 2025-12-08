@@ -42,6 +42,8 @@ interface GenerationContext {
   insideDescription?: boolean;
   insideDefaultValue?: boolean;
   insideEnumValue?: boolean;
+  insideInputValueDefinition?: boolean;
+  insideDirectiveConst?: boolean;
 }
 
 /**
@@ -92,6 +94,8 @@ export const graphqlSDLGenerator: Generator<string> = {
     const indent = opts.format ? " ".repeat(opts.indentSize ?? 2) : "";
     const lines: string[] = [];
     const referencedTypes = new Set<string>();
+    const referencedInputTypes = new Set<string>();
+    const referencedDirectives = new Set<string>();
     const generatedTypeDefinitions = new Set<string>();
 
     // Special handling for SchemaDefinition - parse it specifically
@@ -123,7 +127,9 @@ export const graphqlSDLGenerator: Generator<string> = {
           generatedTypeDefinitions,
           undefined,
           { fieldCount: 0 },
-          referencedTypes
+          referencedTypes,
+          referencedInputTypes,
+          referencedDirectives
         );
         if (generated) {
           lines.push(generated);
@@ -131,9 +137,23 @@ export const graphqlSDLGenerator: Generator<string> = {
       }
     }
 
+    // Generate input type definitions for referenced input types that don't exist
+    for (const typeName of referencedInputTypes) {
+      if (!grammar.rules[`${typeName}TypeDefinition`] && !grammar.rules[`${typeName}InputTypeDefinition`] && !grammar.rules[typeName]) {
+        // Generate a minimal input type definition
+        const typeDef = opts.format
+          ? `input ${typeName} {\n${indent}_: Boolean\n}`
+          : `input ${typeName} { _: Boolean }`;
+        lines.push(typeDef);
+        if (opts.format) {
+          lines.push("");
+        }
+      }
+    }
+
     // Generate type definitions for referenced types that don't exist
     for (const typeName of referencedTypes) {
-      if (!grammar.rules[`${typeName}TypeDefinition`] && !grammar.rules[typeName]) {
+      if (!grammar.rules[`${typeName}TypeDefinition`] && !grammar.rules[typeName] && !referencedInputTypes.has(typeName)) {
         // Generate a minimal type definition
         const typeDef = opts.format
           ? `type ${typeName} {\n${indent}_: Boolean\n}`
@@ -142,6 +162,18 @@ export const graphqlSDLGenerator: Generator<string> = {
         if (opts.format) {
           lines.push("");
         }
+      }
+    }
+
+    // Generate directive definitions for referenced directives that don't exist
+    for (const directiveName of referencedDirectives) {
+      // Generate a minimal directive definition that can be used on OBJECT type
+      const directiveDef = opts.format
+        ? `directive @${directiveName} on OBJECT`
+        : `directive @${directiveName} on OBJECT`;
+      lines.push(directiveDef);
+      if (opts.format) {
+        lines.push("");
       }
     }
 
@@ -191,7 +223,9 @@ function generateFromRule(
   generatedTypeDefinitions?: Set<string>,
   contextRuleName?: string,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   // Track type definitions as they're generated
   if (generatedTypeDefinitions && rule.name.endsWith("TypeDefinition")) {
@@ -206,6 +240,8 @@ function generateFromRule(
     insideDescription: rule.name === "Description",
     insideDefaultValue: rule.name === "DefaultValue",
     insideEnumValue: rule.name === "EnumValue",
+    insideInputValueDefinition: rule.name === "InputValueDefinition",
+    insideDirectiveConst: rule.name === "DirectiveConst",
   };
   
   return generateFromElement(
@@ -217,7 +253,9 @@ function generateFromRule(
     effectiveContext.ruleName,
     generatedTypeDefinitions,
     effectiveContext,
-    referencedTypes
+    referencedTypes,
+    referencedInputTypes,
+    referencedDirectives
   );
 }
 
@@ -233,11 +271,13 @@ function generateFromElement(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   switch (element.kind) {
     case "Terminal":
-      return generateTerminal(element, grammar, contextRuleName, context, referencedTypes);
+      return generateTerminal(element, grammar, contextRuleName, context, referencedTypes, referencedInputTypes, referencedDirectives);
 
     case "NonTerminal":
       return generateNonTerminal(
@@ -249,7 +289,9 @@ function generateFromElement(
         contextRuleName,
         generatedTypeDefinitions,
         context,
-        referencedTypes
+        referencedTypes,
+        referencedInputTypes,
+        referencedDirectives
       );
 
     case "Sequence":
@@ -262,7 +304,9 @@ function generateFromElement(
         contextRuleName,
         generatedTypeDefinitions,
         context,
-        referencedTypes
+        referencedTypes,
+        referencedInputTypes,
+        referencedDirectives
       );
 
     case "OneOf":
@@ -275,7 +319,9 @@ function generateFromElement(
         contextRuleName,
         generatedTypeDefinitions,
         context,
-        referencedTypes
+        referencedTypes,
+        referencedInputTypes,
+        referencedDirectives
       );
 
     case "Optional":
@@ -289,7 +335,9 @@ function generateFromElement(
         contextRuleName,
         generatedTypeDefinitions,
         context,
-        referencedTypes
+        referencedTypes,
+        referencedInputTypes,
+        referencedDirectives
       );
 
     case "List":
@@ -302,7 +350,9 @@ function generateFromElement(
         contextRuleName,
         generatedTypeDefinitions,
         context,
-        referencedTypes
+        referencedTypes,
+        referencedInputTypes,
+        referencedDirectives
       );
 
     default:
@@ -323,7 +373,9 @@ function generateOptional(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   // Check if this Optional contains a Description
   if (optional.element.kind === "NonTerminal" && optional.element.name === "Description") {
@@ -351,7 +403,9 @@ function generateOptional(
     contextRuleName,
     generatedTypeDefinitions,
     context,
-    referencedTypes
+    referencedTypes,
+    referencedInputTypes,
+    referencedDirectives
   );
 }
 
@@ -364,7 +418,9 @@ function generateTerminal(
   _grammar: Grammar,
   contextRuleName?: string,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   // If terminal has a name that's a keyword, use it directly
   const keyword = terminal.name.toLowerCase();
@@ -432,6 +488,50 @@ function generateTerminal(
 
   // RECOMMENDATION 2: Context-aware Name generation
   if (terminal.name === "Name") {
+    // DirectiveConst context - generate directive name
+    if (context?.insideDirectiveConst || contextRuleName === "DirectiveConst") {
+      const directiveName = "directiveName";
+      // Track referenced directive so we can generate it if missing
+      if (referencedDirectives) {
+        referencedDirectives.add(directiveName);
+      }
+      return directiveName;
+    }
+    
+    // EnumValue context - generate enum value name (uppercase)
+    if (context?.insideEnumValue || contextRuleName === "EnumValue") {
+      return "ENUM_VALUE";
+    }
+    
+    // NamedType/Type context - generate type name
+    // Check if we're in InputValueDefinition context FIRST (for argument types)
+    if ((context?.ruleName === "NamedType" || context?.ruleName === "Type" || contextRuleName === "Type" || contextRuleName === "NamedType") && 
+        context?.insideInputValueDefinition) {
+      // Generate Input Type for arguments
+      const typeName = "ArgumentType";
+      // Track referenced input type so we can generate it if missing
+      if (referencedInputTypes) {
+        referencedInputTypes.add(typeName);
+      }
+      return typeName;
+    }
+    
+    // NamedType/Type context - generate type name (for field return types)
+    if (context?.ruleName === "NamedType" || context?.ruleName === "Type" || contextRuleName === "Type" || contextRuleName === "NamedType") {
+      const typeName = "FieldType";
+      // Track referenced type so we can generate it if missing
+      if (referencedTypes) {
+        referencedTypes.add(typeName);
+      }
+      return typeName;
+    }
+    
+    // InputValueDefinition context - generate argument name (not type)
+    // Only generate argument name if we're directly in InputValueDefinition context (not Type/NamedType)
+    if (contextRuleName === "InputValueDefinition" && context?.ruleName !== "Type" && context?.ruleName !== "NamedType") {
+      return "argumentName";
+    }
+    
     // FieldDefinition context - generate camelCase field names
     // Only when we're directly in FieldDefinition context (not Type/NamedType)
     if (contextRuleName === "FieldDefinition" && context?.ruleName === "FieldDefinition") {
@@ -462,17 +562,6 @@ function generateTerminal(
       return "InputObjectName";
     }
     
-    // NamedType/Type context - generate type name
-    // Check context.ruleName to see if we're inside Type/NamedType
-    if (context?.ruleName === "NamedType" || context?.ruleName === "Type") {
-      const typeName = "FieldType";
-      // Track referenced type so we can generate it if missing
-      if (referencedTypes) {
-        referencedTypes.add(typeName);
-      }
-      return typeName;
-    }
-    
     // Default placeholder for Name
     return "TypeName";
   }
@@ -493,7 +582,9 @@ function generateNonTerminal(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   const rule = grammar.rules[ruleName];
   if (!rule) {
@@ -504,11 +595,13 @@ function generateNonTerminal(
   // Important: Preserve fieldCount from parent context
   const updatedContext: GenerationContext = {
     ...context,
-    ruleName: rule.name.endsWith("TypeDefinition") ? rule.name : contextRuleName,
+    ruleName: rule.name.endsWith("TypeDefinition") ? rule.name : (rule.name === "EnumValue" ? "EnumValue" : contextRuleName),
     insideFieldsDefinition: rule.name === "FieldsDefinition" || context?.insideFieldsDefinition,
     insideDescription: rule.name === "Description" || context?.insideDescription,
     insideDefaultValue: rule.name === "DefaultValue" || context?.insideDefaultValue,
-    insideEnumValue: rule.name === "EnumValue" || context?.insideEnumValue,
+    insideEnumValue: rule.name === "EnumValue" || context?.insideEnumValue, // Preserve if already set
+    insideInputValueDefinition: rule.name === "InputValueDefinition" || context?.insideInputValueDefinition,
+    insideDirectiveConst: rule.name === "DirectiveConst" || context?.insideDirectiveConst,
     // Preserve fieldCount - don't reset it
     fieldCount: context?.fieldCount,
   };
@@ -522,7 +615,9 @@ function generateNonTerminal(
     generatedTypeDefinitions,
     updatedContext.ruleName,
     updatedContext,
-    referencedTypes
+    referencedTypes,
+    referencedInputTypes,
+    referencedDirectives
   );
 }
 
@@ -539,7 +634,9 @@ function generateSequence(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   const parts: string[] = [];
 
@@ -557,6 +654,40 @@ function generateSequence(
       elementContextRuleName = "Type";
     }
     
+    // For InputValueDefinition sequence, update context for Type element
+    // InputValueDefinition structure: Name, Colon, Type
+    // We want Type to have context "Type" but preserve insideInputValueDefinition flag
+    let elementContext = context;
+    if (contextRuleName === "InputValueDefinition" && element.kind === "NonTerminal" && element.name === "Type") {
+      elementContextRuleName = "Type";
+      // Preserve insideInputValueDefinition flag for Type generation
+      elementContext = {
+        ...context,
+        insideInputValueDefinition: true,
+        ruleName: "Type",
+      };
+    }
+    
+    // For DirectiveConst sequence, update context for Name element
+    // DirectiveConst structure: At, Name
+    if (contextRuleName === "DirectiveConst" && element.kind === "NonTerminal" && element.name === "Name") {
+      elementContext = {
+        ...context,
+        insideDirectiveConst: true,
+        ruleName: "DirectiveConst",
+      };
+    }
+    
+    // For EnumValueDefinition sequence, update context for EnumValue element
+    // EnumValueDefinition structure: EnumValue (which contains Name)
+    if (contextRuleName === "EnumValueDefinition" && element.kind === "NonTerminal" && element.name === "EnumValue") {
+      elementContext = {
+        ...context,
+        insideEnumValue: true,
+        ruleName: "EnumValue",
+      };
+    }
+    
     const generated = generateFromElement(
       grammar,
       element,
@@ -565,8 +696,10 @@ function generateSequence(
       depth,
       elementContextRuleName,
       generatedTypeDefinitions,
-      context,
-      referencedTypes
+      elementContext,
+      referencedTypes,
+      referencedInputTypes,
+      referencedDirectives
     );
 
     if (generated && generated.trim()) {
@@ -626,7 +759,9 @@ function generateOneOf(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   if (oneOf.options.length > 0) {
     return generateFromElement(
@@ -638,7 +773,9 @@ function generateOneOf(
       contextRuleName,
       generatedTypeDefinitions,
       context,
-      referencedTypes
+      referencedTypes,
+      referencedInputTypes,
+      referencedDirectives
     );
   }
   return "";
@@ -657,7 +794,9 @@ function generateList(
   contextRuleName?: string,
   generatedTypeDefinitions?: Set<string>,
   context?: GenerationContext,
-  referencedTypes?: Set<string>
+  referencedTypes?: Set<string>,
+  referencedInputTypes?: Set<string>,
+  referencedDirectives?: Set<string>
 ): string {
   const nextDepth = depth + 1;
   const items: string[] = [];
@@ -680,6 +819,36 @@ function generateList(
     }
 
     return items.join(options.format ? "\n" : " ");
+  }
+
+  // Special handling for List of DirectiveConst
+  if (
+    list.element.kind === "NonTerminal" &&
+    list.element.name === "DirectiveConst"
+  ) {
+    const directiveContext: GenerationContext = {
+      ...context,
+      insideDirectiveConst: true,
+      ruleName: "DirectiveConst",
+    };
+    
+    const item = generateFromElement(
+      grammar,
+      list.element,
+      indent,
+      options,
+      depth,
+      "DirectiveConst",
+      generatedTypeDefinitions,
+      directiveContext,
+      referencedTypes,
+      referencedInputTypes,
+      referencedDirectives
+    );
+    
+    if (item) {
+      return item;
+    }
   }
 
   // RECOMMENDATION 3: Special handling for FieldDefinition lists (inside FieldsDefinition)
@@ -705,11 +874,43 @@ function generateList(
       "FieldDefinition",
       generatedTypeDefinitions,
       fieldContext,
-      referencedTypes
+      referencedTypes,
+      referencedInputTypes,
+      referencedDirectives
     );
     
     if (item) {
       // Field is already formatted as a single line (e.g., "fieldName: FieldType")
+      return item;
+    }
+  }
+  
+  // Special handling for List of EnumValueDefinition
+  if (
+    list.element.kind === "NonTerminal" &&
+    list.element.name === "EnumValueDefinition"
+  ) {
+    const enumValueContext: GenerationContext = {
+      ...context,
+      insideEnumValue: true,
+      ruleName: "EnumValue",
+    };
+    
+    const item = generateFromElement(
+      grammar,
+      list.element,
+      indent,
+      options,
+      depth,
+      "EnumValueDefinition",
+      generatedTypeDefinitions,
+      enumValueContext,
+      referencedTypes,
+      referencedInputTypes,
+      referencedDirectives
+    );
+    
+    if (item) {
       return item;
     }
   }
@@ -724,7 +925,9 @@ function generateList(
     contextRuleName,
     generatedTypeDefinitions,
     context,
-    referencedTypes
+    referencedTypes,
+    referencedInputTypes,
+    referencedDirectives
   );
 
   if (item) {
