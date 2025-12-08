@@ -52,17 +52,45 @@ tests/
 
 ### Test Organization
 
-Tests are organized by plugin type, mirroring the fixture structure:
+Tests are organized by plugin type, mirroring the fixture structure. For plugins with many tests, split into multiple files by grammar section or feature area:
 
 ```
 tests/
   parsers/
-    {parser-name}.test.ts
+    {parser-name}.test.ts                    # Main test file (if small)
+    {parser-name}.{section}.test.ts         # Section-specific tests (if large)
   transformers/
     {transformer-name}.test.ts
   generators/
-    {generator-name}.test.ts
+    {generator-name}.test.ts                 # Main test file (if small)
+    {generator-name}.{section}.test.ts      # Section-specific tests (if large)
 ```
+
+**Splitting Guidelines:**
+- **Keep files under ~300-400 lines** for optimal AI agent efficiency
+- **Split by grammar section** (e.g., `graphql-sdl.schema.test.ts`, `graphql-sdl.scalars.test.ts`)
+- **Split by feature area** (e.g., `graphql-sdl.config.test.ts` for configuration tests)
+- **Maintain consistent structure** - each file should have the same imports and setup
+- **Use descriptive file names** that match the grammar section or feature being tested
+
+**Example Structure for Large Test Suites:**
+```
+tests/generators/graphql-sdl/
+  graphql-sdl.test.ts                        # Main file with shared setup
+  graphql-sdl.schema.test.ts                 # 3.3 Schema Definition tests
+  graphql-sdl.scalars.test.ts                # 3.5 Scalar Type tests
+  graphql-sdl.objects.test.ts                # 3.6 Object Type tests
+  graphql-sdl.interfaces.test.ts             # 3.7 Interface Type tests
+  graphql-sdl.config.test.ts                 # Configuration option tests
+  graphql-sdl.lexical-tokens.test.ts         # C.1-C.3 Lexical Tokens tests
+```
+
+**Benefits of Splitting:**
+- **AI Agent Efficiency**: Smaller files = faster context loading and better focus
+- **Maintainability**: Easier to find and modify specific test sections
+- **Parallel Development**: Multiple developers can work on different sections simultaneously
+- **Clear Organization**: Each file has a single, clear responsibility
+- **Reduced Cognitive Load**: Easier to understand and reason about smaller files
 
 ### Critical Testing Rules
 
@@ -443,6 +471,248 @@ it(`[${TEST_ID}] test description`, async () => {
 
 **Reference Implementation:**
 - See `tests/generators/graphql-sdl.test.ts` test `GEN-GSDL-001` or `GEN-GSDL-002` for complete examples
+
+### Common Testing Activities & Shortcut Phrases
+
+The following activities are commonly performed when working with tests. Use these shortcut phrases to activate them:
+
+#### 1. **Prep Test / Prepare Test**
+**Phrase**: `"prep test {TEST_ID}"` or `"prepare test {TEST_ID}"`
+
+**What it does**: Sets up proper test reporting infrastructure for an existing test.
+
+**Activities**:
+- Adds `initTestReport()` call with test context
+- Adds `expectValidGraphQL()` validation with all required options
+- Wraps validation in try/catch with `reportTestPassed()` and `reportTestFailed()`
+- Adds required imports (`initTestReport`, `reportTestPassed`, `reportTestFailed`, `SchemaCheckResult`)
+
+**Example**: `"prep test GEN-GSDL-002"` → Prepares test GEN-GSDL-002 with full reporting
+
+---
+
+#### 2. **Create Test**
+**Phrase**: `"create test for {description}"` or `"add test for {description}"`
+
+**What it does**: Creates a new test from scratch with fixtures and test code.
+
+**Activities**:
+- Creates test ID using `createTestID()` and registers it
+- Creates fixture files (input and expected) in appropriate directories
+- Writes test code following the test patterns
+- Sets up test reporting (calls prep test activities)
+- Updates test plan documentation if applicable
+
+**Example**: `"create test for Generate Name in directive context"` → Creates complete test with fixtures
+
+---
+
+#### 3. **Create Fixtures**
+**Phrase**: `"create fixtures for {TEST_ID}"` or `"add fixtures for {description}"`
+
+**What it does**: Creates fixture files for a test without creating the test code.
+
+**Activities**:
+- Creates input fixture file (JSON for generators, GraphQL for parsers)
+- Creates expected fixture file (GraphQL for generators, JSON for parsers)
+- Names fixtures using pattern: `{TEST-ID}-{description-kebab-case}.{extension}`
+- Places files in correct directory structure (`input/`, `expected/`, `valid/`, `invalid/`)
+
+**Example**: `"create fixtures for GEN-GSDL-007"` → Creates input and expected fixtures
+
+---
+
+#### 4. **Rename Fixtures**
+**Phrase**: `"rename fixtures to include test id"` or `"update fixture names"`
+
+**What it does**: Renames existing fixture files to include test ID and description.
+
+**Activities**:
+- Renames fixture files to format: `{TEST-ID}-{description-kebab-case}.{extension}`
+- Updates all test file references to use new fixture names
+- Maintains file extensions and directory structure
+- Updates both input and expected fixtures
+
+**Example**: `"rename fixtures to include test id"` → Renames all fixtures and updates references
+
+---
+
+#### 5. **Create Test Plan**
+**Phrase**: `"create test plan for {component}"` or `"write test plan"`
+
+**What it does**: Creates a comprehensive test plan document.
+
+**Activities**:
+- Creates markdown document with test plan structure
+- Organizes tests by grammar sections or component areas
+- Includes test IDs, descriptions, and checkboxes for tracking
+- Adds test statistics and completion tracking
+- Cross-references with existing tests
+
+**Example**: `"create test plan for GraphQL generator"` → Creates comprehensive test plan document
+
+---
+
+#### 6. **View Test Report**
+**Phrase**: `"view test report for {TEST_ID}"` or `"show test report {TEST_ID}"`
+
+**What it does**: Displays a test report in human-readable format.
+
+**Activities**:
+- Runs `npm run test:report {TEST_ID}`
+- Displays test status, input, expected output, actual output
+- Shows validation errors and warnings
+- Shows test metadata and timestamps
+
+**Example**: `"view test report for GEN-GSDL-001"` → Shows formatted test report
+
+---
+
+#### 7. **Run Test**
+**Phrase**: `"run test {TEST_ID}"` or `"test {TEST_ID}"`
+
+**What it does**: Runs a specific test by ID.
+
+**Activities**:
+- Executes `npm test -- -t {TEST_ID}`
+- Shows test results and output
+- Can run multiple tests: `"run tests GEN-GSDL-001 GEN-GSDL-002"`
+
+**Example**: `"run test GEN-GSDL-001"` → Runs specific test
+
+---
+
+#### 8. **Update Test Status**
+**Phrase**: `"mark test {TEST_ID} as {status}"` or `"update test status"`
+
+**What it does**: Updates test status in documentation (test plan, status tables).
+
+**Activities**:
+- Finds test ID in documentation files
+- Updates status indicator (✅ PASSED, ⏳ PENDING, ❌ FAILED, ⏸️ SKIPPED)
+- Updates test statistics if applicable
+- Updates completion percentages
+
+**Example**: `"mark test GEN-GSDL-001 as PASSED"` → Updates documentation
+
+---
+
+#### 9. **Create Tests from Plan**
+**Phrase**: `"create tests from plan"` or `"implement tests from {section}"`
+
+**What it does**: Creates multiple tests based on a test plan section.
+
+**Activities**:
+- Reads test plan document
+- Creates tests for each planned test ID in the section
+- Creates fixtures for each test
+- Sets up test reporting for all tests
+- Updates test plan with implementation status
+
+**Example**: `"create tests from plan for Name Token section"` → Creates all Name Token tests
+
+---
+
+#### 10. **Fix Test**
+**Phrase**: `"fix test {TEST_ID}"` or `"make test {TEST_ID} pass"`
+
+**What it does**: Fixes a failing test.
+
+**Activities**:
+- Reads test report to understand failure
+- Identifies root cause (generator/parser issue, fixture mismatch, etc.)
+- Fixes implementation or updates fixtures as needed
+- Validates fix by running test
+- Updates test status if successful
+
+**Example**: `"fix test GEN-GSDL-003"` → Fixes failing test
+
+---
+
+#### 11. **List Test IDs**
+**Phrase**: `"list test ids"` or `"show all test ids"`
+
+**What it does**: Lists all registered test IDs with their descriptions.
+
+**Activities**:
+- Runs `npm run test:ids` or reads test ID registry
+- Displays test IDs with descriptions and status
+- Shows test file locations
+- Can filter by plugin type or pattern
+
+**Example**: `"list test ids"` → Shows all registered test IDs
+
+---
+
+### BTFL Workflow Shortcut
+
+**Phrase**: `"btfl"` or `"run btfl"`
+
+**What it does**: Executes a complete build-test-fix-loop workflow to ensure the project builds successfully and all tests pass.
+
+**Workflow Steps**:
+
+1. **Build the Project**
+   - Run `npm run build` (or equivalent build command)
+   - Verify the build completes without errors
+   - If build fails, proceed to fix errors before continuing
+
+2. **Run the Tests**
+   - Execute `npm test -- --run` to run all tests once (non-watch mode)
+   - Capture test results and identify any failures
+
+3. **Fix Errors**
+   - Analyze test failures and build errors
+   - Identify root causes (implementation bugs, fixture mismatches, type errors, etc.)
+   - Implement fixes systematically
+   - **When encountering key architectural or design decisions:**
+     - **Pause and ask the user** for guidance before proceeding
+     - **Provide a recommended solution** with rationale
+     - **Explain trade-offs** and alternative approaches
+     - **Wait for confirmation** before implementing major changes
+
+4. **Loop Back**
+   - After fixing errors, return to step 1 (build the project)
+   - Continue the cycle until both build and tests pass successfully
+   - Only exit the loop when all tests pass and the project builds cleanly
+
+**Key Decision Points** (Always ask before proceeding):
+- Changes to public APIs or interfaces
+- Modifications to core architecture or plugin system
+- Breaking changes to existing functionality
+- Significant refactoring that affects multiple files
+- Changes to test patterns or validation requirements
+- Updates to fixture formats or naming conventions
+
+**Example Usage**: 
+- User: `"btfl"` → Agent executes build → runs tests → fixes errors → asks about key decisions → loops back until all pass
+
+**Best Practices**:
+- Fix one issue at a time to maintain clarity
+- Run tests after each fix to verify the change
+- Document any architectural decisions made during the process
+- Keep fixes focused and minimal - avoid scope creep
+
+---
+
+### Fixture Naming Convention
+
+**Standard Format**: `{TEST-ID}-{description-kebab-case}.{extension}`
+
+**Examples**:
+- Generator input: `GEN-GSDL-001-generates-schema-definition-with-root-operation-types-grammar.json`
+- Generator expected: `GEN-GSDL-001-generates-schema-definition-with-root-operation-types-grammar.graphql`
+- Parser valid: `PARSE-GSDL-001-parse-name-terminal-with-valid-identifier-pattern.graphql`
+- Parser invalid: `PARSE-GSDL-007-parse-name-with-invalid-characters-should-fail.graphql`
+
+**Rules**:
+- Always include test ID at the start
+- Use kebab-case for descriptions (lowercase, hyphens for spaces)
+- Remove special characters, keep only alphanumeric and hyphens
+- Include file type indicator (`-grammar` for JSON fixtures, no suffix for GraphQL)
+- Maintain consistent naming across input/expected pairs
+
+---
 
 ## Code Style
 
